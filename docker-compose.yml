@@ -1,0 +1,168 @@
+services:
+  # MySQL 8.0 Database Service
+  mysql:
+    image: mysql:8.0
+    container_name: ${PROJECT_NAME:-hd_live}_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_secure_password_2026}
+      MYSQL_DATABASE: ${DB_NAME:-hd_live}
+      MYSQL_USER: ${DB_USER:-hd_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-hd_password}
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/src/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${DB_USER:-hd_user}", "-p${DB_PASSWORD:-hd_password}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app_network
+
+  # Node.js Express & Socket.IO Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME:-hd_live}_backend
+    restart: always
+    ports:
+      - "${BACKEND_PORT:-5050}:5050"
+      - "${GAME_BIG_EATER_PORT:-5061}:5061"
+      - "${GAME_SLOTE_MECINE_PORT:-5062}:5062"
+      - "${GAME_FERRYWHEEL_PORT:-5063}:5063"
+      - "${GAME_GREEDYBABY_PORT:-5064}:5064"
+      - "${GAME_GREEDYLION_PORT:-5065}:5065"
+      - "${GAME_ROULETTECASINO_PORT:-5066}:5066"
+      - "${GAME_TEENPATTI_PORT:-5067}:5067"
+    environment:
+      PROJECT_NAME: ${PROJECT_NAME:-hd_live}
+      PORT: 5050
+      NODE_ENV: ${NODE_ENV:-production}
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-hd_user}
+      DB_PASSWORD: ${DB_PASSWORD:-hd_password}
+      DB_NAME: ${DB_NAME:-hd_live}
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-20}
+      JWT_SECRET: ${JWT_SECRET:-hd_live_jwt_secret_token_key_2026_super_secure!}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      JWT_ISSUER: ${JWT_ISSUER:-${PROJECT_NAME:-hd_live}}
+      CLIENT_URL: ${CLIENT_URL:-*}
+      SOCKET_CORS_ORIGIN: ${SOCKET_CORS_ORIGIN:-*}
+      SOCKET_PING_TIMEOUT: ${SOCKET_PING_TIMEOUT:-30000}
+      SOCKET_PING_INTERVAL: ${SOCKET_PING_INTERVAL:-25000}
+      SOCKET_MAX_BUFFER_SIZE: ${SOCKET_MAX_BUFFER_SIZE:-10485760}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-${PROJECT_NAME:-hd_live}:}
+      REDIS_MAX_MEMORY: ${REDIS_MAX_MEMORY:-256mb}
+      REDIS_MAX_MEMORY_POLICY: ${REDIS_MAX_MEMORY_POLICY:-allkeys-lru}
+      REDIS_CONNECT_TIMEOUT: ${REDIS_CONNECT_TIMEOUT:-10000}
+      REDIS_COMMAND_TIMEOUT: ${REDIS_COMMAND_TIMEOUT:-2500}
+      REDIS_DEFAULT_TTL: ${REDIS_DEFAULT_TTL:-180}
+      REDIS_MIN_TTL: ${REDIS_MIN_TTL:-5}
+      REDIS_MAX_TTL: ${REDIS_MAX_TTL:-3600}
+      REDIS_TTL_LIVE_STREAM: ${REDIS_TTL_LIVE_STREAM:-10}
+      REDIS_TTL_WALLET: ${REDIS_TTL_WALLET:-20}
+      REDIS_TTL_NOTIFICATIONS: ${REDIS_TTL_NOTIFICATIONS:-20}
+      REDIS_TTL_LEADERBOARD: ${REDIS_TTL_LEADERBOARD:-60}
+      REDIS_TTL_USER_PROFILE: ${REDIS_TTL_USER_PROFILE:-60}
+      REDIS_TTL_RESELLER_AGENCY: ${REDIS_TTL_RESELLER_AGENCY:-60}
+      REDIS_TTL_ECONOMY_CONFIG: ${REDIS_TTL_ECONOMY_CONFIG:-30}
+      REDIS_TTL_CATALOG: ${REDIS_TTL_CATALOG:-300}
+      REDIS_TTL_SYSTEM_CONFIG: ${REDIS_TTL_SYSTEM_CONFIG:-300}
+      REDIS_TTL_SECURITY_OTP: ${REDIS_TTL_SECURITY_OTP:-300}
+      REDIS_TTL_SECURITY_BAN: ${REDIS_TTL_SECURITY_BAN:-604800}
+      REDIS_TTL_CHAT: ${REDIS_TTL_CHAT:-20}
+      REDIS_TTL_FEED: ${REDIS_TTL_FEED:-45}
+      FIREBASE_CREDENTIALS_PATH: ${FIREBASE_CREDENTIALS_PATH:-/app/umi_firebase.json}
+      GAME_BIG_EATER_PORT: ${GAME_BIG_EATER_PORT:-5061}
+      GAME_SLOTE_MECINE_PORT: ${GAME_SLOTE_MECINE_PORT:-5062}
+      GAME_FERRYWHEEL_PORT: ${GAME_FERRYWHEEL_PORT:-5063}
+      GAME_GREEDYBABY_PORT: ${GAME_GREEDYBABY_PORT:-5064}
+      GAME_GREEDYLION_PORT: ${GAME_GREEDYLION_PORT:-5065}
+      GAME_ROULETTECASINO_PORT: ${GAME_ROULETTECASINO_PORT:-5066}
+      GAME_TEENPATTI_PORT: ${GAME_TEENPATTI_PORT:-5067}
+      GAME_WEBHOOK_SECRET: ${GAME_WEBHOOK_SECRET:-hd_live_game_webhook_secret_key_2026}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/uploads:/app/uploads
+      - ./Games:/app/Games
+      - ./Games:/Games
+      - ./umi_firebase.json:/app/umi_firebase.json:ro
+    networks:
+      - app_network
+
+
+  # Redis 7 In-Memory Cache Service (Production Grade)
+  redis:
+    image: redis:7-alpine
+    container_name: ${PROJECT_NAME:-hd_live}_redis
+    restart: always
+    command: >
+      sh -c '
+        CMD="redis-server --save 60 1 --save 300 10 --appendonly yes --maxmemory $${REDIS_MAX_MEMORY:-256mb} --maxmemory-policy $${REDIS_MAX_MEMORY_POLICY:-allkeys-lru}"
+        if [ -n "$$REDIS_PASSWORD" ]; then
+          CMD="$$CMD --requirepass $$REDIS_PASSWORD"
+        fi
+        exec $$CMD
+      '
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_MAX_MEMORY: ${REDIS_MAX_MEMORY:-256mb}
+      REDIS_MAX_MEMORY_POLICY: ${REDIS_MAX_MEMORY_POLICY:-allkeys-lru}
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+    healthcheck:
+      test: >
+        sh -c '
+          if [ -n "$$REDIS_PASSWORD" ]; then
+            redis-cli -a "$$REDIS_PASSWORD" ping | grep -q PONG
+          else
+            redis-cli ping | grep -q PONG
+          fi
+        '
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # React Vite Admin Panel Service
+  admin-panel:
+    build:
+      context: ./admin-panel
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME:-hd_live}_admin_panel
+    restart: always
+    ports:
+      - "${ADMIN_PORT:-3000}:80"
+    depends_on:
+      - backend
+    networks:
+      - app_network
+
+volumes:
+  mysql_data:
+    name: ${PROJECT_NAME:-hd_live}_mysql_data
+  redis_data:
+    name: ${PROJECT_NAME:-hd_live}_redis_data
+
+networks:
+  app_network:
+    name: ${PROJECT_NAME:-hd_live}_network
+
+

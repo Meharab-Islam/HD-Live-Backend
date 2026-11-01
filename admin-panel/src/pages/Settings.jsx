@@ -1,0 +1,5802 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Settings as SettingsIcon,
+  Save,
+  Database,
+  Shield,
+  Server,
+  RefreshCw,
+  Lock,
+  Eye,
+  EyeOff,
+  Key,
+  Gem,
+  Coins,
+  Percent,
+  ArrowRightLeft,
+  Sparkles,
+  CheckCircle2,
+  Video,
+  Mic,
+  Sliders,
+  Calculator,
+  DollarSign,
+  Image as ImageIcon,
+  Plus,
+  Trash2,
+  Calendar,
+  Copy,
+  Wifi,
+  Check,
+  AlertTriangle,
+  Layers,
+  TrendingUp,
+  Activity,
+  Zap,
+  PhoneCall,
+  PhoneIncoming,
+  PhoneOutgoing,
+  Clock,
+  Camera,
+  CameraOff,
+  Monitor,
+  MonitorOff,
+  Cast,
+  UserCheck,
+  Users,
+  Fingerprint,
+  VideoOff,
+  X,
+  Gift,
+  Star,
+  StarHalf,
+  Crown,
+  Upload,
+  Wrench,
+  Smartphone,
+  ExternalLink,
+  AlertCircle,
+} from 'lucide-react';
+import settingsApi from '../api/settingsApi';
+import authApi from '../api/authApi';
+import userApi from '../api/userApi';
+import Loader from '../components/Loader';
+import { uploadFile, resolveAssetUrl, getCurrentUser, setCurrentUser } from '../api/client';
+import FileUploadInput from '../components/FileUploadInput';
+import { useBranding } from '../context/BrandingContext';
+
+export default function Settings({ onToast, targetSection }) {
+  const { updateBranding } = useBranding();
+  const [settings, setSettings] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Super Admin Profile State
+  const [adminProfile, setAdminProfile] = useState({
+    id: 1,
+    full_name: '',
+    avatar_url: '',
+    email: '',
+    role: 'superadmin',
+    password: '',
+  });
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+
+  const getInitialTab = () => {
+    if (targetSection === 'economy') return 'economy';
+    if (targetSection === 'calls') return 'calls';
+    if (targetSection === 'streaming') return 'streaming';
+    if (targetSection === 'screen_guard') return 'screen_guard';
+    if (targetSection === 'stars') return 'stars';
+    if (targetSection === 'monetization') return 'monetization';
+    if (targetSection === 'security') return 'security';
+    if (targetSection === 'system') return 'system';
+    if (targetSection === 'danger' || targetSection === 'reset') return 'danger';
+    return 'profile';
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialTab);
+
+  // Clear All Users & System Reset State
+  const [clearActionPassword, setClearActionPassword] = useState('');
+  const [clearRestartId, setClearRestartId] = useState('2');
+  const [clearConfirmWord, setClearConfirmWord] = useState('');
+  const [clearingAllUsers, setClearingAllUsers] = useState(false);
+  const [showClearActionPassword, setShowClearActionPassword] = useState(false);
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
+
+  const handleClearAllUsersSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!clearActionPassword.trim()) {
+      if (onToast) onToast('Action security password is required.', 'error');
+      return;
+    }
+    if (clearConfirmWord.trim().toUpperCase() !== 'RESET') {
+      if (onToast) onToast('Please type RESET in the confirmation field to proceed.', 'error');
+      return;
+    }
+    try {
+      setClearingAllUsers(true);
+      const res = await userApi.clearAllUsers({
+        action_password: clearActionPassword.trim(),
+        restart_id: parseInt(clearRestartId, 10) || 2,
+      });
+      if (res.success) {
+        if (onToast) onToast(res.message || 'All non-admin users purged and system reset successfully!', 'success');
+        setShowClearConfirmModal(false);
+        setClearActionPassword('');
+        setClearConfirmWord('');
+      } else {
+        if (onToast) onToast(res.message || 'Failed to clear users', 'error');
+      }
+    } catch (err) {
+      if (onToast) onToast(err.message || 'Error clearing all users', 'error');
+    } finally {
+      setClearingAllUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (targetSection) {
+      setActiveTab(getInitialTab());
+    }
+  }, [targetSection]);
+
+  const [showActionPassword, setShowActionPassword] = useState(false);
+  const [showLivekitSecret, setShowLivekitSecret] = useState(false);
+  const [savingLivekit, setSavingLivekit] = useState(false);
+  const [savingEconomy, setSavingEconomy] = useState(false);
+  const [savingSecurity, setSavingSecurity] = useState(false);
+  const [savingSystem, setSavingSystem] = useState(false);
+  const [savingGracePeriod, setSavingGracePeriod] = useState(false);
+  const [copiedEndpoint, setCopiedEndpoint] = useState(false);
+  const [savingCalls, setSavingCalls] = useState(false);
+  const [callLogs, setCallLogs] = useState([]);
+  const [loadingCallLogs, setLoadingCallLogs] = useState(false);
+  const [simCallType, setSimCallType] = useState('video');
+  const [simCallMinutes, setSimCallMinutes] = useState(5);
+  const [savingScreenGuard, setSavingScreenGuard] = useState(false);
+  const [newWithdrawalPreset, setNewWithdrawalPreset] = useState('');
+  const [newRechargePreset, setNewRechargePreset] = useState('');
+
+  const parsePresetsList = (raw, fallback = []) => {
+    if (Array.isArray(raw)) return raw;
+    if (!raw) return fallback;
+    try {
+      if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        if (trimmed.startsWith('[')) {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) return parsed.map(Number).filter((n) => !isNaN(n));
+        }
+        return trimmed.split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n));
+      }
+      return fallback;
+    } catch (e) {
+      return fallback;
+    }
+  };
+
+  const handleAddWithdrawalPreset = () => {
+    const num = parseInt(newWithdrawalPreset, 10);
+    if (isNaN(num) || num <= 0) return;
+    const current = parsePresetsList(settings.withdrawal_presets, [1000, 2000, 5000, 10000, 25000, 50000]);
+    if (!current.includes(num)) {
+      const updated = [...current, num].sort((a, b) => a - b);
+      handleChange('withdrawal_presets', JSON.stringify(updated));
+    }
+    setNewWithdrawalPreset('');
+  };
+
+  const handleRemoveWithdrawalPreset = (numToRemove) => {
+    const current = parsePresetsList(settings.withdrawal_presets, [1000, 2000, 5000, 10000, 25000, 50000]);
+    const updated = current.filter((n) => n !== numToRemove);
+    handleChange('withdrawal_presets', JSON.stringify(updated));
+  };
+
+  const handleResetWithdrawalPresets = () => {
+    handleChange('withdrawal_presets', JSON.stringify([1000, 2000, 5000, 10000, 25000, 50000]));
+  };
+
+  const handleAddRechargePreset = () => {
+    const num = parseInt(newRechargePreset, 10);
+    if (isNaN(num) || num <= 0) return;
+    const current = parsePresetsList(settings.recharge_presets, [500, 1000, 2500, 5000, 10000, 50000, 100000]);
+    if (!current.includes(num)) {
+      const updated = [...current, num].sort((a, b) => a - b);
+      handleChange('recharge_presets', JSON.stringify(updated));
+    }
+    setNewRechargePreset('');
+  };
+
+  const handleRemoveRechargePreset = (numToRemove) => {
+    const current = parsePresetsList(settings.recharge_presets, [500, 1000, 2500, 5000, 10000, 50000, 100000]);
+    const updated = current.filter((n) => n !== numToRemove);
+    handleChange('recharge_presets', JSON.stringify(updated));
+  };
+
+  const handleResetRechargePresets = () => {
+    handleChange('recharge_presets', JSON.stringify([500, 1000, 2500, 5000, 10000, 50000, 100000]));
+  };
+
+  // Star Progression State
+  const [starConfig, setStarConfig] = useState({
+    is_enabled: true,
+    coins_per_unit: 100000,
+    metric_type: 'coins_spent',
+    decimal_precision: 1,
+    max_stars: 100,
+  });
+  const [starStats, setStarStats] = useState({
+    total_starred_users: 0,
+    highest_star: 0,
+    average_star: 0,
+    total_users: 0,
+  });
+  const [topStarUsers, setTopStarUsers] = useState([]);
+  const [loadingStars, setLoadingStars] = useState(false);
+  const [savingStars, setSavingStars] = useState(false);
+  const [recalculatingStars, setRecalculatingStars] = useState(false);
+  const [simStarCoins, setSimStarCoins] = useState(120000);
+
+  const fetchStarSettings = async () => {
+    try {
+      setLoadingStars(true);
+      const res = await settingsApi.getStarSettings();
+      if (res && res.success) {
+        if (res.config) setStarConfig(res.config);
+        if (res.stats) {
+          setStarStats({
+            total_starred_users: Number(res.stats.total_starred_users || 0),
+            highest_star: Number(res.stats.highest_star || 0),
+            average_star: Number(res.stats.average_star || 0),
+            total_users: Number(res.stats.total_users || 0),
+          });
+        }
+        if (Array.isArray(res.topUsers)) setTopStarUsers(res.topUsers);
+      }
+    } catch (err) {
+      // silent fallback
+    } finally {
+      setLoadingStars(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStarSettings();
+  }, []);
+
+  const handleSaveStars = async () => {
+    try {
+      setSavingStars(true);
+      const res = await settingsApi.updateStarSettings(starConfig);
+      if (res && res.success) {
+        onToast('Star progression configuration updated successfully!', 'success');
+      } else {
+        onToast(res?.message || 'Failed to update star configuration', 'error');
+      }
+    } catch (err) {
+      onToast(err.message, 'error');
+    } finally {
+      setSavingStars(false);
+    }
+  };
+
+  const handleRecalculateAllStars = async () => {
+    if (!window.confirm("Are you sure you want to recalculate star ratings for all users in the system using the formula: Points / " + Number(starConfig?.coins_per_unit || 100000).toLocaleString() + " = Stars?")) {
+      return;
+    }
+    try {
+      setRecalculatingStars(true);
+      const res = await settingsApi.recalculateAllStars();
+      if (res && res.success) {
+        onToast(res.message || 'All user star ratings recalculated successfully!', 'success');
+        fetchStarSettings();
+      } else {
+        onToast(res?.message || 'Failed to recalculate user stars', 'error');
+      }
+    } catch (err) {
+      onToast(err.message, 'error');
+    } finally {
+      setRecalculatingStars(false);
+    }
+  };
+  const [resetModal, setResetModal] = useState({
+    isOpen: false,
+    type: null,
+    title: '',
+    description: '',
+    actionPassword: '',
+    includeAdmins: false,
+    loading: false,
+  });
+
+  const handleOpenResetModal = (type) => {
+    let title = '';
+    let description = '';
+    if (type === 'coins') {
+      title = "Reset All Users' Coins to 0";
+      description = "This will immediately set the coin balance to 0 for all regular users across the entire system. User diamond balances will NOT be affected. Redis user and wallet caches will be flushed immediately.";
+    } else if (type === 'diamonds') {
+      title = "Reset All Users' Diamonds to 0";
+      description = "This will immediately set the diamond balance to 0 for all regular users across the entire system. User coin balances will NOT be affected. Redis user and wallet caches will be flushed immediately.";
+    } else if (type === 'all') {
+      title = "Reset ALL Users' Wallets (Coins & Diamonds) to 0";
+      description = "DANGER: This will immediately set BOTH coins and diamonds to 0 for all regular users in the entire system. Redis user, wallet, and leaderboard caches will be flushed immediately.";
+    }
+    setResetModal({
+      isOpen: true,
+      type,
+      title,
+      description,
+      actionPassword: '',
+      includeAdmins: false,
+      loading: false,
+    });
+  };
+
+  const handleExecuteReset = async () => {
+    if (!resetModal.actionPassword) {
+      onToast('Please enter your admin action security password', 'error');
+      return;
+    }
+    try {
+      setResetModal((prev) => ({ ...prev, loading: true }));
+      let res;
+      if (resetModal.type === 'coins') {
+        res = await settingsApi.resetAllCoins(resetModal.actionPassword, resetModal.includeAdmins);
+      } else if (resetModal.type === 'diamonds') {
+        res = await settingsApi.resetAllDiamonds(resetModal.actionPassword, resetModal.includeAdmins);
+      } else if (resetModal.type === 'all') {
+        res = await settingsApi.resetAllBalances(resetModal.actionPassword, resetModal.includeAdmins);
+      }
+      onToast(res.message || 'System wallet reset completed successfully!', 'success');
+      setResetModal({
+        isOpen: false,
+        type: null,
+        title: '',
+        description: '',
+        actionPassword: '',
+        includeAdmins: false,
+        loading: false,
+      });
+    } catch (err) {
+      onToast(err.message || 'Failed to execute system wallet reset', 'error');
+      setResetModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleSaveCalls = async () => {
+    try {
+      setSavingCalls(true);
+      await Promise.all([
+        settingsApi.updateSetting('call_audio_rate_per_minute', settings.call_audio_rate_per_minute || '20', 'Default coin cost per minute for 1-on-1 audio call in direct messages'),
+        settingsApi.updateSetting('call_video_rate_per_minute', settings.call_video_rate_per_minute || '50', 'Default coin cost per minute for 1-on-1 video call in direct messages'),
+        settingsApi.updateSetting('call_video_live_rate_per_minute', settings.call_video_live_rate_per_minute || '30', 'Coin cost per minute for Video Live seat interaction or private call'),
+        settingsApi.updateSetting('call_min_balance_to_start', settings.call_min_balance_to_start || '20', 'Minimum coin balance required for caller to initiate call'),
+        settingsApi.updateSetting('call_receiver_earnings_percent', settings.call_receiver_earnings_percent || '70', 'Percentage of call coins awarded to call receiver as diamonds'),
+        settingsApi.updateSetting('call_is_enabled', settings.call_is_enabled || 'true', 'Master switch to enable or disable 1-on-1 calls'),
+      ]);
+      onToast('1-to-1 Audio & Video Call rates & settings updated successfully!', 'success');
+    } catch (err) {
+      onToast(err.message, 'error');
+    } finally {
+      setSavingCalls(false);
+    }
+  };
+
+  const handleSaveScreenGuard = async () => {
+    try {
+      setSavingScreenGuard(true);
+      const keys = [
+        'app_screen_guard_enabled',
+        'live_screen_guard_enabled',
+        'live_screen_record_enabled',
+        'live_screen_share_enabled',
+        'live_screen_share_roles',
+        'screen_guard_allow_host',
+        'screen_guard_allow_creator_record',
+        'screen_guard_allow_creator_share',
+        'screen_guard_creator_bypass',
+        'screen_guard_allow_moderator',
+        'screen_guard_allow_agency',
+        'screen_guard_allow_general_users',
+        'screen_guard_watermark_enabled',
+      ];
+      await Promise.all(
+        keys.map((k) =>
+          settingsApi.updateSetting(k, settings[k] !== undefined ? String(settings[k]) : 'true', '')
+        )
+      );
+      onToast('Screen Guard & Privacy settings saved and pushed to all live sessions!', 'success');
+    } catch (err) {
+      onToast(err.message, 'error');
+    } finally {
+      setSavingScreenGuard(false);
+    }
+  };
+
+  const fetchCallLogs = async () => {
+    try {
+      setLoadingCallLogs(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/admin/call-logs?limit=15', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (data.success && data.calls) {
+        setCallLogs(data.calls);
+      }
+    } catch (err) {
+      console.warn('fetchCallLogs warning:', err);
+    } finally {
+      setLoadingCallLogs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'calls') {
+      fetchCallLogs();
+    }
+  }, [activeTab]);
+
+  const handleSaveGracePeriod = async () => {
+    try {
+      setSavingGracePeriod(true);
+      const hostSec = Math.max(5, parseInt(settings.host_disconnect_grace_period_seconds, 10) || 90);
+      const guestSec = Math.max(5, parseInt(settings.guest_seat_disconnect_grace_period_seconds, 10) || 60);
+
+      await Promise.all([
+        settingsApi.updateSetting(
+          'host_disconnect_grace_period_seconds',
+          String(hostSec),
+          'Host reconnection grace period in seconds before terminating room'
+        ),
+        settingsApi.updateSetting(
+          'guest_seat_disconnect_grace_period_seconds',
+          String(guestSec),
+          'Seated guest/co-host reconnection grace period in seconds before removing from seat'
+        ),
+      ]);
+      setSettings((prev) => ({
+        ...prev,
+        host_disconnect_grace_period_seconds: String(hostSec),
+        guest_seat_disconnect_grace_period_seconds: String(guestSec),
+      }));
+      onToast('Reconnection grace periods updated & synchronized in real-time!', 'success');
+    } catch (err) {
+      onToast(err.message, 'error');
+    } finally {
+      setSavingGracePeriod(false);
+    }
+  };
+
+  // Live Simulation Calculator State
+  const [simCoins, setSimCoins] = useState(1000);
+
+  // Dynamic Custom Thumbnail Duration & Pricing Plans
+  const [pricingTiers, setPricingTiers] = useState([
+    { days: 7, coins: 200 },
+    { days: 15, coins: 350 },
+    { days: 30, coins: 500 },
+    { days: 90, coins: 1200 },
+  ]);
+
+  useEffect(() => {
+    if (settings.custom_thumbnail_pricing_tiers) {
+      try {
+        const parsed = typeof settings.custom_thumbnail_pricing_tiers === 'string'
+          ? JSON.parse(settings.custom_thumbnail_pricing_tiers)
+          : settings.custom_thumbnail_pricing_tiers;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setPricingTiers(parsed);
+        }
+      } catch (e) { }
+    }
+  }, [settings.custom_thumbnail_pricing_tiers]);
+
+  const handleTierChange = (index, field, val) => {
+    setPricingTiers((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: parseInt(val, 10) || 0 };
+      return copy;
+    });
+  };
+
+  const handleAddTier = () => {
+    setPricingTiers((prev) => [...prev, { days: 60, coins: 800 }]);
+  };
+
+  const handleRemoveTier = (index) => {
+    if (pricingTiers.length <= 1) {
+      onToast('You must keep at least 1 duration plan.', 'warning');
+      return;
+    }
+    setPricingTiers((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveTiers = async () => {
+    try {
+      setSaving(true);
+      const valStr = JSON.stringify(pricingTiers);
+      await settingsApi.updateSetting(
+        'custom_thumbnail_pricing_tiers',
+        valStr,
+        'Dynamic pricing tiers (days vs coins) for user-uploaded custom room background thumbnails'
+      );
+      setSettings((prev) => ({ ...prev, custom_thumbnail_pricing_tiers: valStr }));
+      onToast('Thumbnail duration pricing tiers saved successfully!', 'success');
+    } catch (err) {
+      onToast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveLivekit = async () => {
+    try {
+      setSavingLivekit(true);
+      await Promise.all([
+        settingsApi.updateSetting(
+          'live_stream_provider',
+          settings.live_stream_provider || 'livekit',
+          'Streaming engine provider (livekit, agora, rtmp)'
+        ),
+        settingsApi.updateSetting(
+          'livekit_url',
+          settings.livekit_url || '',
+          'LiveKit Cloud or self-hosted WebSocket URL (e.g., wss://your-project.livekit.cloud)'
+        ),
+        settingsApi.updateSetting(
+          'livekit_api_key',
+          settings.livekit_api_key || '',
+          'LiveKit Server/Project API Key'
+        ),
+        settingsApi.updateSetting(
+          'livekit_api_secret',
+          settings.livekit_api_secret || '',
+          'LiveKit Server/Project API Secret'
+        ),
+      ]);
+      onToast('LiveKit credentials saved & synchronized with mobile APIs!', 'success');
+    } catch (err) {
+      onToast(err.message, 'error');
+    } finally {
+      setSavingLivekit(false);
+    }
+  };
+
+  const handleSaveEconomy = async () => {
+    try {
+      setSavingEconomy(true);
+      const keys = [
+        'is_convert_to_diamond',
+        'coin_to_diamond_ratio',
+        'diamond_to_usd_rate',
+        'video_host_withdrawal_enabled',
+        'video_host_diamond_base',
+        'video_host_taka_amount',
+        'video_host_min_withdrawal',
+        'audio_host_withdrawal_enabled',
+        'audio_host_diamond_base',
+        'audio_host_taka_amount',
+        'audio_host_min_withdrawal',
+        'user_withdrawal_enabled',
+        'user_diamond_base',
+        'user_taka_amount',
+        'user_min_withdrawal',
+        'agency_withdrawal_enabled',
+        'agency_diamond_base',
+        'agency_taka_amount',
+        'agency_min_withdrawal',
+        'reseller_withdrawal_enabled',
+        'reseller_diamond_base',
+        'reseller_taka_amount',
+        'reseller_min_withdrawal',
+        'moderator_withdrawal_enabled',
+        'moderator_diamond_base',
+        'moderator_taka_amount',
+        'moderator_min_withdrawal',
+        'min_withdrawal_diamonds',
+        'withdrawal_presets',
+        'allow_manual_withdrawal_input',
+        'admin_gift_commission_percent',
+        'agency_gift_commission_percent',
+        'user_transfer_commission_percent',
+        'recharge_presets',
+        'default_registration_coins',
+      ];
+      await Promise.all(
+        keys.map((k) =>
+          settings[k] !== undefined
+            ? settingsApi.updateSetting(k, settings[k])
+            : Promise.resolve()
+        )
+      );
+      onToast('Platform Economy & Role Cashout settings updated!', 'success');
+    } catch (err) {
+      onToast(err.message, 'error');
+    } finally {
+      setSavingEconomy(false);
+    }
+  };
+
+  const handleSaveSecurity = async () => {
+    try {
+      setSavingSecurity(true);
+      await settingsApi.updateSetting(
+        'action_security_password',
+        settings.action_security_password || 'admin123',
+        'Security action password required for coin recharge and balance deductions'
+      );
+      onToast('Admin security action password saved successfully!', 'success');
+    } catch (err) {
+      onToast(err.message, 'error');
+    } finally {
+      setSavingSecurity(false);
+    }
+  };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      onToast('Please select a valid image file (PNG, JPG, SVG, WebP)', 'error');
+      return;
+    }
+
+    try {
+      setUploadingLogo(true);
+      const res = await uploadFile(file, 'branding');
+      if (res && res.url) {
+        handleChange('platform_logo_url', res.url);
+        handleChange('app_logo_url', res.url);
+        onToast('Logo uploaded! Click "Save System Settings" to persist.', 'success');
+      }
+    } catch (err) {
+      onToast(err.message || 'Logo upload failed', 'error');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleSaveSystem = async () => {
+    try {
+      setSavingSystem(true);
+      const finalName = (settings.platform_name || settings.app_name || 'HD Live').trim();
+      const finalLogo = (settings.platform_logo_url || settings.app_logo_url || '').trim();
+      const finalTagline = (settings.admin_title || 'Broadcasting & Live Streaming Admin Console').trim();
+
+      await Promise.all([
+        settingsApi.updateSetting('maintenance_mode', settings.maintenance_mode || 'false', 'Platform maintenance mode flag'),
+        settingsApi.updateSetting('maintenance_title', settings.maintenance_title || 'Under Scheduled Maintenance', 'Maintenance screen headline title'),
+        settingsApi.updateSetting('maintenance_reason', settings.maintenance_reason || 'System upgrade and security enhancements in progress', 'Maintenance core reason'),
+        settingsApi.updateSetting('maintenance_message', settings.maintenance_message || 'Platform is under scheduled maintenance. Please check back shortly.', 'Platform maintenance message'),
+        settingsApi.updateSetting('maintenance_eta', settings.maintenance_eta || 'Soon', 'Estimated maintenance completion time'),
+        settingsApi.updateSetting('platform_name', finalName, 'Platform display name'),
+        settingsApi.updateSetting('app_name', finalName, 'Mobile app display name'),
+        settingsApi.updateSetting('platform_logo_url', finalLogo, 'Platform and Admin Logo URL'),
+        settingsApi.updateSetting('app_logo_url', finalLogo, 'Mobile App Logo URL'),
+        settingsApi.updateSetting('admin_title', finalTagline, 'Admin Panel Tagline Title'),
+        settingsApi.updateSetting('min_supported_version', settings.min_supported_version || '1.0.0', 'Client minimum supported app version'),
+      ]);
+
+      // Propagate dynamically to entire Admin Panel UI
+      updateBranding({
+        name: finalName,
+        logo: finalLogo,
+        tagline: finalTagline,
+      });
+
+      onToast('Platform Branding, Name & Logo updated across Admin Panel!', 'success');
+    } catch (err) {
+      onToast(err.message, 'error');
+    } finally {
+      setSavingSystem(false);
+    }
+  };
+
+  const fetchSettings = async () => {
+    try {
+      setLoading(true);
+      const res = await settingsApi.getSettings();
+      if (res.success && res.settings) {
+        const map = {};
+        res.settings.forEach((s) => {
+          map[s.key_name] = s.key_value;
+        });
+        setSettings(map);
+      }
+    } catch (err) {
+      onToast(err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAdminProfile = async () => {
+    try {
+      setLoadingProfile(true);
+      const res = await authApi.getAdminProfile();
+      if (res.success && res.user) {
+        setAdminProfile({
+          id: res.user.id || 1,
+          full_name: res.user.full_name || '',
+          avatar_url: res.user.avatar_url || '',
+          email: res.user.email || '',
+          role: res.user.role || 'superadmin',
+          password: '',
+        });
+      }
+    } catch (err) {
+      const cur = getCurrentUser();
+      if (cur) {
+        setAdminProfile({
+          id: cur.id || 1,
+          full_name: cur.full_name || '',
+          avatar_url: cur.avatar_url || '',
+          email: cur.email || '',
+          role: cur.role || 'superadmin',
+          password: '',
+        });
+      }
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
+  const handleSaveAdminProfile = async (e) => {
+    if (e) e.preventDefault();
+    if (!adminProfile.full_name.trim()) {
+      onToast('Super Admin full name is required.', 'error');
+      return;
+    }
+
+    try {
+      setSavingProfile(true);
+      const payload = {
+        full_name: adminProfile.full_name.trim(),
+        avatar_url: (adminProfile.avatar_url || '').trim(),
+        email: (adminProfile.email || '').trim(),
+      };
+      if (adminProfile.password && adminProfile.password.trim()) {
+        payload.password = adminProfile.password.trim();
+      }
+
+      const res = await authApi.updateAdminProfile(payload);
+      if (res.success && res.user) {
+        // Update local session
+        const current = getCurrentUser() || {};
+        const updated = { ...current, ...res.user };
+        setCurrentUser(updated);
+
+        // Notify App and Sidebar live
+        window.dispatchEvent(new Event('user-profile-updated'));
+
+        setAdminProfile((prev) => ({
+          ...prev,
+          password: '',
+          full_name: res.user.full_name,
+          avatar_url: res.user.avatar_url,
+          email: res.user.email,
+        }));
+
+        onToast('Super Admin profile updated successfully!', 'success');
+      } else {
+        onToast(res.message || 'Failed to update profile.', 'error');
+      }
+    } catch (err) {
+      onToast(err.message || 'Failed to update profile.', 'error');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSettings();
+    fetchAdminProfile();
+  }, []);
+
+  const handleChange = (key, val) => {
+    setSettings((prev) => ({ ...prev, [key]: val }));
+  };
+
+  const handleSaveAll = async (e) => {
+    if (e) e.preventDefault();
+    try {
+      setSaving(true);
+      for (const key of Object.keys(settings)) {
+        await settingsApi.updateSetting(key, settings[key]);
+      }
+      const finalName = settings.platform_name || settings.app_name;
+      const finalLogo = settings.platform_logo_url || settings.app_logo_url;
+      const finalTagline = settings.admin_title;
+      if (finalName || finalLogo) {
+        updateBranding({ name: finalName, logo: finalLogo, tagline: finalTagline });
+      }
+      onToast('All platform settings updated!', 'success');
+    } catch (err) {
+      onToast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <Loader text="Loading platform configuration..." size="lg" />;
+  }
+
+  const isDiamondMode = settings.is_convert_to_diamond !== 'false';
+  const coinRatio = parseFloat(settings.coin_to_diamond_ratio || '1.0') || 1.0;
+  const adminGiftPct = parseFloat(settings.admin_gift_commission_percent || '15.0') || 0;
+  const agencyGiftPct = parseFloat(settings.agency_gift_commission_percent || '10.0') || 0;
+  const hostCoinSharePct = Math.max(0, 100 - adminGiftPct - agencyGiftPct);
+  const userTransferPct = parseFloat(settings.user_transfer_commission_percent || '5.0') || 0;
+
+  // Conversion calculations for Video and Audio hosts (e.g. 100 coins = 5 taka)
+  const videoBase = parseFloat(settings.video_host_diamond_base || '100');
+  const videoTaka = parseFloat(settings.video_host_taka_amount || '5');
+  const videoRate = videoBase > 0 ? videoTaka / videoBase : 0.05;
+
+  const audioBase = parseFloat(settings.audio_host_diamond_base || '100');
+  const audioTaka = parseFloat(settings.audio_host_taka_amount || '3.5');
+  const audioRate = audioBase > 0 ? audioTaka / audioBase : 0.035;
+
+  const userBase = parseFloat(settings.user_diamond_base || '100000');
+  const userTaka = parseFloat(settings.user_taka_amount || '4000');
+  const userRate = userBase > 0 ? userTaka / userBase : 0.04;
+
+  const agencyBase = parseFloat(settings.agency_diamond_base || '100000');
+  const agencyTaka = parseFloat(settings.agency_taka_amount || '6000');
+  const agencyRate = agencyBase > 0 ? agencyTaka / agencyBase : 0.06;
+
+  const resellerBase = parseFloat(settings.reseller_diamond_base || '100000');
+  const resellerTaka = parseFloat(settings.reseller_taka_amount || '5500');
+  const resellerRate = resellerBase > 0 ? resellerTaka / resellerBase : 0.055;
+
+  const moderatorBase = parseFloat(settings.moderator_diamond_base || '100000');
+  const moderatorTaka = parseFloat(settings.moderator_taka_amount || '4500');
+  const moderatorRate = moderatorBase > 0 ? moderatorTaka / moderatorBase : 0.045;
+
+  // Real-time Simulation Calculations
+  const simNum = Math.max(0, parseInt(simCoins, 10) || 0);
+  const simAdminCoins = Math.round((simNum * adminGiftPct) / 100);
+  const simAgencyCoins = Math.round((simNum * agencyGiftPct) / 100);
+  const simHostCoins = Math.max(0, simNum - simAdminCoins - simAgencyCoins);
+  const simHostDiamonds = isDiamondMode ? Math.round(simHostCoins * coinRatio) : simHostCoins;
+  const simVideoPayout = (simHostDiamonds * videoRate).toFixed(2);
+  const simAudioPayout = (simHostDiamonds * audioRate).toFixed(2);
+
+  const adminTabs = [
+    {
+      id: 'profile',
+      name: 'Super Admin Profile',
+      icon: UserCheck,
+      badge: 'Master Account',
+      badgeColor: '#10b981',
+      accent: '#8b5cf6',
+      description: 'Super Admin display name, profile avatar photo, email, and login credentials.',
+    },
+    {
+      id: 'security',
+      name: 'Financial Security',
+      icon: Lock,
+      badge: 'Protected',
+      badgeColor: '#7c3aed',
+      accent: '#7c3aed',
+      description: 'Authorization passwords for coin recharges and administrative balance adjustments.',
+    },
+    {
+      id: 'system',
+      name: 'System & Maintenance',
+      icon: Shield,
+      badge: settings.maintenance_mode === 'true' ? 'Maintenance ON' : 'Live Online',
+      badgeColor: settings.maintenance_mode === 'true' ? '#ef4444' : '#10b981',
+      accent: '#3b82f6',
+      description: 'Platform maintenance mode, scheduled downtime notices, and global application branding.',
+    },
+    {
+      id: 'danger',
+      name: 'Clear Users & Reset',
+      icon: Trash2,
+      badge: 'Danger Zone',
+      badgeColor: '#ef4444',
+      accent: '#ef4444',
+      description: 'Permanently wipe all registered non-admin users and reset registration IDs back to #2.',
+    },
+  ];
+
+  const getHeaderMeta = () => {
+    if (targetSection === 'economy') {
+      return {
+        title: 'Platform Economy & Currency Engine',
+        subtitle: isDiamondMode
+          ? 'Diamond conversion, host cashout exchange rates, and revenue sharing rules.'
+          : 'Direct Coin split, host cashout exchange rates, and revenue sharing rules.',
+        icon: Database,
+        badge: isDiamondMode ? '💎 Diamond Mode' : '🪙 Direct Coins',
+        badgeColor: isDiamondMode ? '#8b5cf6' : '#f59e0b',
+      };
+    }
+    if (targetSection === 'calls') {
+      return {
+        title: '1-to-1 Calls & Rates',
+        subtitle: 'P2P Audio & Video Call per-minute coin costs, host revenue split, and live call logs.',
+        icon: PhoneCall,
+        badge: settings.call_is_enabled === 'false' ? 'Disabled' : `${settings.call_video_rate_per_minute || '50'}c / ${settings.call_audio_rate_per_minute || '20'}c`,
+        badgeColor: settings.call_is_enabled === 'false' ? '#ef4444' : '#10b981',
+      };
+    }
+    if (targetSection === 'streaming') {
+      return {
+        title: 'LiveKit & WebRTC Engine',
+        subtitle: 'LiveKit cloud websocket mesh, project API credentials, and dynamic mobile discovery.',
+        icon: Server,
+        badge: settings.livekit_url && settings.livekit_api_key ? 'Active' : 'Setup Needed',
+        badgeColor: settings.livekit_url && settings.livekit_api_key ? '#10b981' : '#ef4444',
+      };
+    }
+    if (targetSection === 'screen_guard') {
+      return {
+        title: 'Screen Guard Policy',
+        subtitle: 'Control screenshot, screen recording, screen share permissions for live rooms and app.',
+        icon: Camera,
+        badge: settings.app_screen_guard_enabled === 'false' ? 'Guard Off' : settings.live_screen_guard_enabled === 'false' ? 'App Only' : 'Full Guard',
+        badgeColor: settings.app_screen_guard_enabled === 'false' ? '#ef4444' : '#7c3aed',
+      };
+    }
+    if (targetSection === 'stars') {
+      return {
+        title: 'Star Progression System',
+        subtitle: 'Configure star formula (100k = 1.0⭐), live simulator, and bulk star recalculation.',
+        icon: Star,
+        badge: starConfig?.is_enabled ? `1⭐ = ${(Number(starConfig?.coins_per_unit || 100000) / 1000).toFixed(0)}k` : 'Disabled',
+        badgeColor: starConfig?.is_enabled ? '#f59e0b' : '#ef4444',
+      };
+    }
+    if (targetSection === 'monetization') {
+      return {
+        title: 'Room Wallpaper Duration Pricing',
+        subtitle: 'Dynamic duration pricing tiers for user-uploaded custom live room background wallpapers.',
+        icon: ImageIcon,
+        badge: `${pricingTiers.length} Plans`,
+        badgeColor: '#ec4899',
+      };
+    }
+    return {
+      title: 'Admin Console Settings',
+      subtitle: 'Manage administrative authorization passwords, maintenance modes, and brand identity.',
+      icon: SettingsIcon,
+      badge: 'Admin Console',
+      badgeColor: '#7c3aed',
+    };
+  };
+
+  const headerMeta = getHeaderMeta();
+  const HeaderIcon = headerMeta.icon;
+
+  return (
+    <div style={{ maxWidth: '1080px', margin: '0 auto', paddingBottom: '3rem' }}>
+      {/* Top Header Banner */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '1.25rem',
+          padding: '1.5rem',
+          borderRadius: '16px',
+          background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(6, 182, 212, 0.05) 50%, rgba(245, 158, 11, 0.05) 100%)',
+          border: '1px solid rgba(124, 58, 237, 0.2)',
+          marginBottom: '1.75rem',
+          boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div
+            style={{
+              width: '52px',
+              height: '52px',
+              borderRadius: '14px',
+              background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              boxShadow: '0 4px 14px rgba(124, 58, 237, 0.35)',
+            }}
+          >
+            <HeaderIcon size={26} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0, letterSpacing: '-0.02em' }}>
+                {headerMeta.title}
+              </h1>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  background: `${headerMeta.badgeColor}18`,
+                  color: headerMeta.badgeColor,
+                  border: `1px solid ${headerMeta.badgeColor}33`,
+                }}
+              >
+                {headerMeta.badge}
+              </span>
+            </div>
+            <p style={{ fontSize: '0.86rem', color: 'var(--text-dim)', margin: '4px 0 0 0' }}>
+              {headerMeta.subtitle}
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={fetchSettings}
+            disabled={loading || saving}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '0.6rem 1rem', fontSize: '0.85rem' }}
+          >
+            <RefreshCw size={15} className={loading ? 'spin' : ''} />
+            <span>Reload</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleSaveAll}
+            disabled={saving}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '0.6rem 1.25rem',
+              fontSize: '0.88rem',
+              boxShadow: '0 4px 14px rgba(124, 58, 237, 0.3)',
+            }}
+          >
+            <Save size={16} />
+            <span>{saving ? 'Saving Changes...' : 'Save Settings'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Modern Navigation Tabs Bar (Rendered only in Admin Settings) */}
+      {(!targetSection || targetSection === 'admin') && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '0.65rem',
+            marginBottom: '1.5rem',
+          }}
+        >
+          {adminTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  padding: '0.9rem 1rem',
+                  borderRadius: '12px',
+                  border: isActive ? `2px solid ${tab.accent}` : '1px solid var(--border-color)',
+                  background: isActive ? 'var(--bg-secondary)' : 'var(--bg-card)',
+                  boxShadow: isActive ? `0 4px 16px -2px ${tab.accent}33` : 'var(--shadow-sm)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  textAlign: 'left',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                {isActive && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: '3px',
+                      background: tab.accent,
+                    }}
+                  />
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '0.4rem' }}>
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      background: isActive ? `${tab.accent}20` : 'var(--bg-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: isActive ? tab.accent : 'var(--text-dim)',
+                    }}
+                  >
+                    <Icon size={18} />
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      padding: '2px 6px',
+                      borderRadius: '6px',
+                      background: `${tab.badgeColor}18`,
+                      color: tab.badgeColor,
+                      border: `1px solid ${tab.badgeColor}33`,
+                    }}
+                  >
+                    {tab.badge}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: isActive ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                  {tab.name}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* TAB CONTENT 1: PLATFORM ECONOMY & CURRENCY ENGINE */}
+      {activeTab === 'economy' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Main Economy Configuration Panel */}
+          <div className="panel-card" style={{ border: '1px solid rgba(139, 92, 246, 0.35)' }}>
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="panel-title">
+                <Database size={22} color="#8b5cf6" />
+                <span>Platform Economy & Currency Engine</span>
+              </div>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: isDiamondMode ? 'rgba(139, 92, 246, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                  color: isDiamondMode ? '#8b5cf6' : '#d97706',
+                  border: isDiamondMode ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)',
+                  padding: '5px 12px',
+                  borderRadius: '20px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                }}
+              >
+                {isDiamondMode ? <Gem size={14} /> : <Coins size={14} />}
+                <span>{isDiamondMode ? 'Diamond Conversion Mode Active' : 'Direct Coin Split Mode Active'}</span>
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Economy Mode Selector Cards */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.75rem' }}>
+                  Select Core Platform Economy Model:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+                  {/* Option 1: Diamond Conversion Mode */}
+                  <div
+                    onClick={() => handleChange('is_convert_to_diamond', 'true')}
+                    style={{
+                      padding: '1.25rem',
+                      borderRadius: '14px',
+                      cursor: 'pointer',
+                      border: isDiamondMode ? '2px solid #8b5cf6' : '1px solid var(--border-color)',
+                      background: isDiamondMode ? 'rgba(139, 92, 246, 0.08)' : 'var(--bg-primary)',
+                      boxShadow: isDiamondMode ? '0 0 20px rgba(139, 92, 246, 0.22)' : 'none',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                      position: 'relative',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontWeight: 700, color: isDiamondMode ? '#8b5cf6' : 'var(--text-main)', fontSize: '1rem' }}>
+                        <div
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            background: 'rgba(139, 92, 246, 0.15)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Gem size={18} color="#8b5cf6" />
+                        </div>
+                        <span>Diamond Conversion Mode</span>
+                      </div>
+                      {isDiamondMode && <CheckCircle2 size={20} color="#8b5cf6" />}
+                    </div>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-dim)', lineHeight: 1.5, margin: 0 }}>
+                      Users send <strong>Coins (🪙)</strong> which automatically convert into <strong>Diamonds (💎)</strong> for hosts. Streamers accumulate diamonds and request cashout based on dynamic Diamond-to-Taka exchange rates.
+                    </p>
+                  </div>
+
+                  {/* Option 2: Direct Coin Commission Mode */}
+                  <div
+                    onClick={() => handleChange('is_convert_to_diamond', 'false')}
+                    style={{
+                      padding: '1.25rem',
+                      borderRadius: '14px',
+                      cursor: 'pointer',
+                      border: !isDiamondMode ? '2px solid #f59e0b' : '1px solid var(--border-color)',
+                      background: !isDiamondMode ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-primary)',
+                      boxShadow: !isDiamondMode ? '0 0 20px rgba(245, 158, 11, 0.22)' : 'none',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                      position: 'relative',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontWeight: 700, color: !isDiamondMode ? '#d97706' : 'var(--text-main)', fontSize: '1rem' }}>
+                        <div
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            background: 'rgba(245, 158, 11, 0.15)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Coins size={18} color="#f59e0b" />
+                        </div>
+                        <span>Direct Coin & Commission Mode</span>
+                      </div>
+                      {!isDiamondMode && <CheckCircle2 size={20} color="#f59e0b" />}
+                    </div>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-dim)', lineHeight: 1.5, margin: 0 }}>
+                      <strong>Direct Coin split active!</strong> Gifts and transfers reward direct <strong>Coins (🪙)</strong>. Hosts retain a configurable percentage and cash out directly from their coin balance into Taka (৳).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* LIVE SIMULATION CALCULATOR (PRO FEATURE) */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.04) 0%, rgba(15, 23, 42, 0.07) 100%)',
+                  borderRadius: '14px',
+                  border: '1px solid var(--border-color)',
+                  padding: '1.25rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'rgba(124, 58, 237, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Calculator size={16} color="#7c3aed" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                        Live Economics Simulator
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                        Real-time calculation breakdown for gifts and cashout payouts
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                      Test Gift Amount:
+                    </label>
+                    <div style={{ position: 'relative', width: '130px' }}>
+                      <input
+                        type="number"
+                        min="1"
+                        step="100"
+                        className="input-field"
+                        value={simCoins}
+                        onChange={(e) => setSimCoins(e.target.value)}
+                        style={{ paddingRight: '2rem', fontWeight: 700, fontSize: '0.88rem' }}
+                      />
+                      <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.85rem' }}>
+                        🪙
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.85rem' }}>
+                  {/* Platform Share */}
+                  <div style={{ padding: '0.85rem', borderRadius: '10px', background: 'var(--bg-secondary)', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
+                    <div style={{ fontSize: '0.74rem', fontWeight: 600, color: '#ef4444', textTransform: 'uppercase' }}>
+                      Admin Platform ({adminGiftPct}%)
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ef4444', marginTop: '2px' }}>
+                      {simAdminCoins} <span style={{ fontSize: '0.8rem' }}>coins</span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Retained by system</div>
+                  </div>
+
+                  {/* Agency Share */}
+                  <div style={{ padding: '0.85rem', borderRadius: '10px', background: 'var(--bg-secondary)', border: '1px solid rgba(59, 130, 246, 0.25)' }}>
+                    <div style={{ fontSize: '0.74rem', fontWeight: 600, color: '#3b82f6', textTransform: 'uppercase' }}>
+                      Agency ({agencyGiftPct}%)
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#3b82f6', marginTop: '2px' }}>
+                      {simAgencyCoins} <span style={{ fontSize: '0.8rem' }}>coins</span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Host agency commission</div>
+                  </div>
+
+                  {/* Host Received */}
+                  <div style={{ padding: '0.85rem', borderRadius: '10px', background: 'var(--bg-secondary)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                    <div style={{ fontSize: '0.74rem', fontWeight: 600, color: '#10b981', textTransform: 'uppercase' }}>
+                      Host ({hostCoinSharePct.toFixed(1)}%)
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10b981', marginTop: '2px' }}>
+                      {isDiamondMode ? `${simHostDiamonds} 💎` : `${simHostCoins} 🪙`}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Credited to streamer</div>
+                  </div>
+
+                  {/* Video Host Cashout */}
+                  <div style={{ padding: '0.85rem', borderRadius: '10px', background: 'var(--bg-secondary)', border: '1px solid rgba(2, 132, 199, 0.25)' }}>
+                    <div style={{ fontSize: '0.74rem', fontWeight: 600, color: '#0284c7', textTransform: 'uppercase' }}>
+                      Video Host Cashout
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0284c7', marginTop: '2px' }}>
+                      ৳ {simVideoPayout}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Net Taka payout</div>
+                  </div>
+
+                  {/* Audio Host Cashout */}
+                  <div style={{ padding: '0.85rem', borderRadius: '10px', background: 'var(--bg-secondary)', border: '1px solid rgba(217, 119, 6, 0.25)' }}>
+                    <div style={{ fontSize: '0.74rem', fontWeight: 600, color: '#d97706', textTransform: 'uppercase' }}>
+                      Audio Host Cashout
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#d97706', marginTop: '2px' }}>
+                      ৳ {simAudioPayout}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Net Taka payout</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Role-Based Payout Conversion Rules (Taka Rates) */}
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
+                  <Sliders size={18} color="#7c3aed" />
+                  <span style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                    Role-Based Cashout Exchange Rules ({isDiamondMode ? 'Diamonds 💎' : 'Coins 🪙'} to Taka ৳ BDT)
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '1rem' }}>
+                  Configure exact base exchange rates and cashout status for Normal Users, Agencies, Resellers, Moderators, and Broadcasters.
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+                  {/* Video Host Rule Card */}
+                  <div
+                    style={{
+                      padding: '1.25rem',
+                      borderRadius: '12px',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid rgba(2, 132, 199, 0.3)',
+                      boxShadow: 'var(--shadow-sm)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#0284c7', fontSize: '0.92rem' }}>
+                        <Video size={18} />
+                        <span>🎥 Video Host Cashout Rule</span>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'rgba(2, 132, 199, 0.1)', color: '#0284c7', padding: '2px 8px', borderRadius: '4px' }}>
+                        High Bandwidth
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                          Base {isDiamondMode ? 'Diamonds (💎)' : 'Coins (🪙)'}:
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          className="input-field"
+                          value={settings.video_host_diamond_base || '100000'}
+                          onChange={(e) => handleChange('video_host_diamond_base', e.target.value)}
+                        />
+                      </div>
+                      <span style={{ color: 'var(--text-dim)', paddingTop: '18px', fontWeight: 700 }}>=</span>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                          Payout (৳ BDT):
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          className="input-field"
+                          value={settings.video_host_taka_amount || '5000'}
+                          onChange={(e) => handleChange('video_host_taka_amount', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: 'rgba(2, 132, 199, 0.08)',
+                        fontSize: '0.78rem',
+                        color: '#0284c7',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span>1 {isDiamondMode ? '💎' : '🪙'} = ৳{videoRate.toFixed(4)} BDT</span>
+                      <span>10,000 = ৳{(10000 * videoRate).toFixed(0)} BDT</span>
+                    </div>
+                  </div>
+
+                  {/* Audio Host Rule Card */}
+                  <div
+                    style={{
+                      padding: '1.25rem',
+                      borderRadius: '12px',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      boxShadow: 'var(--shadow-sm)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#10b981', fontSize: '0.92rem' }}>
+                        <Mic size={18} />
+                        <span>🎙️ Audio Host Cashout Rule</span>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '2px 8px', borderRadius: '4px' }}>
+                        Audio Space
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                          Base {isDiamondMode ? 'Diamonds (💎)' : 'Coins (🪙)'}:
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          className="input-field"
+                          value={settings.audio_host_diamond_base || '100000'}
+                          onChange={(e) => handleChange('audio_host_diamond_base', e.target.value)}
+                        />
+                      </div>
+                      <span style={{ color: 'var(--text-dim)', paddingTop: '18px', fontWeight: 700 }}>=</span>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                          Payout (৳ BDT):
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          className="input-field"
+                          value={settings.audio_host_taka_amount || '3500'}
+                          onChange={(e) => handleChange('audio_host_taka_amount', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: 'rgba(16, 185, 129, 0.08)',
+                        fontSize: '0.78rem',
+                        color: '#10b981',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span>1 {isDiamondMode ? '💎' : '🪙'} = ৳{audioRate.toFixed(4)} BDT</span>
+                      <span>10,000 = ৳{(10000 * audioRate).toFixed(0)} BDT</span>
+                    </div>
+                  </div>
+
+                  {/* Normal User Rule Card */}
+                  <div
+                    style={{
+                      padding: '1.25rem',
+                      borderRadius: '12px',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid rgba(139, 92, 246, 0.3)',
+                      boxShadow: 'var(--shadow-sm)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#8b5cf6', fontSize: '0.92rem' }}>
+                        <UserCheck size={18} />
+                        <span>👤 Normal User Cashout Rule</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleChange('user_withdrawal_enabled', settings.user_withdrawal_enabled === 'false' ? 'true' : 'false')}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          background: settings.user_withdrawal_enabled === 'false' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                          color: settings.user_withdrawal_enabled === 'false' ? '#ef4444' : '#10b981',
+                          border: 'none',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {settings.user_withdrawal_enabled === 'false' ? 'Disabled' : 'Active'}
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                          Base {isDiamondMode ? 'Diamonds (💎)' : 'Coins (🪙)'}:
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          className="input-field"
+                          value={settings.user_diamond_base || '100000'}
+                          onChange={(e) => handleChange('user_diamond_base', e.target.value)}
+                        />
+                      </div>
+                      <span style={{ color: 'var(--text-dim)', paddingTop: '18px', fontWeight: 700 }}>=</span>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                          Payout (৳ BDT):
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          className="input-field"
+                          value={settings.user_taka_amount || '4000'}
+                          onChange={(e) => handleChange('user_taka_amount', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: 'rgba(139, 92, 246, 0.08)',
+                        fontSize: '0.78rem',
+                        color: '#8b5cf6',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span>1 {isDiamondMode ? '💎' : '🪙'} = ৳{userRate.toFixed(4)} BDT</span>
+                      <span>10,000 = ৳{(10000 * userRate).toFixed(0)} BDT</span>
+                    </div>
+                  </div>
+
+                  {/* Agency Partner Rule Card */}
+                  <div
+                    style={{
+                      padding: '1.25rem',
+                      borderRadius: '12px',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid rgba(249, 115, 22, 0.3)',
+                      boxShadow: 'var(--shadow-sm)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#f97316', fontSize: '0.92rem' }}>
+                        <Users size={18} />
+                        <span>🏢 Agency Partner Cashout Rule</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleChange('agency_withdrawal_enabled', settings.agency_withdrawal_enabled === 'false' ? 'true' : 'false')}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          background: settings.agency_withdrawal_enabled === 'false' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                          color: settings.agency_withdrawal_enabled === 'false' ? '#ef4444' : '#10b981',
+                          border: 'none',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {settings.agency_withdrawal_enabled === 'false' ? 'Disabled' : 'Active'}
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                          Base {isDiamondMode ? 'Diamonds (💎)' : 'Coins (🪙)'}:
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          className="input-field"
+                          value={settings.agency_diamond_base || '100000'}
+                          onChange={(e) => handleChange('agency_diamond_base', e.target.value)}
+                        />
+                      </div>
+                      <span style={{ color: 'var(--text-dim)', paddingTop: '18px', fontWeight: 700 }}>=</span>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                          Payout (৳ BDT):
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          className="input-field"
+                          value={settings.agency_taka_amount || '6000'}
+                          onChange={(e) => handleChange('agency_taka_amount', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: 'rgba(249, 115, 22, 0.08)',
+                        fontSize: '0.78rem',
+                        color: '#f97316',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span>1 {isDiamondMode ? '💎' : '🪙'} = ৳{agencyRate.toFixed(4)} BDT</span>
+                      <span>10,000 = ৳{(10000 * agencyRate).toFixed(0)} BDT</span>
+                    </div>
+                  </div>
+
+                  {/* Reseller Rule Card */}
+                  <div
+                    style={{
+                      padding: '1.25rem',
+                      borderRadius: '12px',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                      boxShadow: 'var(--shadow-sm)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#f59e0b', fontSize: '0.92rem' }}>
+                        <Coins size={18} />
+                        <span>🛍️ Coin Reseller Cashout Rule</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleChange('reseller_withdrawal_enabled', settings.reseller_withdrawal_enabled === 'false' ? 'true' : 'false')}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          background: settings.reseller_withdrawal_enabled === 'false' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                          color: settings.reseller_withdrawal_enabled === 'false' ? '#ef4444' : '#10b981',
+                          border: 'none',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {settings.reseller_withdrawal_enabled === 'false' ? 'Disabled' : 'Active'}
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                          Base {isDiamondMode ? 'Diamonds (💎)' : 'Coins (🪙)'}:
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          className="input-field"
+                          value={settings.reseller_diamond_base || '100000'}
+                          onChange={(e) => handleChange('reseller_diamond_base', e.target.value)}
+                        />
+                      </div>
+                      <span style={{ color: 'var(--text-dim)', paddingTop: '18px', fontWeight: 700 }}>=</span>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                          Payout (৳ BDT):
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          className="input-field"
+                          value={settings.reseller_taka_amount || '5500'}
+                          onChange={(e) => handleChange('reseller_taka_amount', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: 'rgba(245, 158, 11, 0.08)',
+                        fontSize: '0.78rem',
+                        color: '#f59e0b',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span>1 {isDiamondMode ? '💎' : '🪙'} = ৳{resellerRate.toFixed(4)} BDT</span>
+                      <span>10,000 = ৳{(10000 * resellerRate).toFixed(0)} BDT</span>
+                    </div>
+                  </div>
+
+                  {/* Moderator Rule Card */}
+                  <div
+                    style={{
+                      padding: '1.25rem',
+                      borderRadius: '12px',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid rgba(6, 182, 212, 0.3)',
+                      boxShadow: 'var(--shadow-sm)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#06b6d4', fontSize: '0.92rem' }}>
+                        <Shield size={18} />
+                        <span>🛡️ Moderator Cashout Rule</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleChange('moderator_withdrawal_enabled', settings.moderator_withdrawal_enabled === 'false' ? 'true' : 'false')}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          background: settings.moderator_withdrawal_enabled === 'false' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                          color: settings.moderator_withdrawal_enabled === 'false' ? '#ef4444' : '#10b981',
+                          border: 'none',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {settings.moderator_withdrawal_enabled === 'false' ? 'Disabled' : 'Active'}
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                          Base {isDiamondMode ? 'Diamonds (💎)' : 'Coins (🪙)'}:
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          className="input-field"
+                          value={settings.moderator_diamond_base || '100000'}
+                          onChange={(e) => handleChange('moderator_diamond_base', e.target.value)}
+                        />
+                      </div>
+                      <span style={{ color: 'var(--text-dim)', paddingTop: '18px', fontWeight: 700 }}>=</span>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                          Payout (৳ BDT):
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          className="input-field"
+                          value={settings.moderator_taka_amount || '4500'}
+                          onChange={(e) => handleChange('moderator_taka_amount', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: 'rgba(6, 182, 212, 0.08)',
+                        fontSize: '0.78rem',
+                        color: '#06b6d4',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span>1 {isDiamondMode ? '💎' : '🪙'} = ৳{moderatorRate.toFixed(4)} BDT</span>
+                      <span>10,000 = ৳{(10000 * moderatorRate).toFixed(0)} BDT</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION: REVENUE SHARING & COMMISSIONS BREAKDOWN */}
+              <div
+                style={{
+                  borderTop: '1px solid var(--border-color)',
+                  paddingTop: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1.25rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        background: 'rgba(217, 119, 6, 0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Percent size={18} color="#d97706" />
+                    </div>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                        Revenue Sharing & Commissions Breakdown
+                      </h4>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                        Split ratio for coin gifting and peer-to-peer coin transfers
+                      </span>
+                    </div>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      padding: '4px 10px',
+                      borderRadius: '16px',
+                      background: hostCoinSharePct >= 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                      color: hostCoinSharePct >= 0 ? '#10b981' : '#ef4444',
+                      border: `1px solid ${hostCoinSharePct >= 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                    }}
+                  >
+                    Total Split: {adminGiftPct + agencyGiftPct + hostCoinSharePct}%
+                  </span>
+                </div>
+
+                {/* 4 Cards Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                  {/* Card 1: Admin Platform Commission */}
+                  <div
+                    style={{
+                      padding: '1.1rem',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(20, 10, 15, 0.4) 100%)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                          Admin Platform Commission
+                        </span>
+                        <Shield size={16} color="#ef4444" />
+                      </div>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', display: 'block', lineHeight: 1.4 }}>
+                        Retained by platform from coin gifts.
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max="100"
+                        className="input-field"
+                        style={{ maxWidth: '130px', fontWeight: 700, fontSize: '1rem', color: '#ef4444' }}
+                        value={settings.admin_gift_commission_percent || '15.0'}
+                        onChange={(e) => handleChange('admin_gift_commission_percent', e.target.value)}
+                      />
+                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#ef4444' }}>%</span>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Default Agency Commission */}
+                  <div
+                    style={{
+                      padding: '1.1rem',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(10, 15, 25, 0.4) 100%)',
+                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                          Default Agency Commission
+                        </span>
+                        <Users size={16} color="#3b82f6" />
+                      </div>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', display: 'block', lineHeight: 1.4 }}>
+                        Credited to host agency (if assigned).
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max="100"
+                        className="input-field"
+                        style={{ maxWidth: '130px', fontWeight: 700, fontSize: '1rem', color: '#3b82f6' }}
+                        value={settings.agency_gift_commission_percent || '10.0'}
+                        onChange={(e) => handleChange('agency_gift_commission_percent', e.target.value)}
+                      />
+                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#3b82f6' }}>%</span>
+                    </div>
+                  </div>
+
+                  {/* Card 3: Host Remaining Share (Auto Calculated) */}
+                  <div
+                    style={{
+                      padding: '1.1rem',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(10, 25, 20, 0.4) 100%)',
+                      border: '1px solid rgba(16, 185, 129, 0.25)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                          Host Remaining Share
+                        </span>
+                        <Sparkles size={16} color="#10b981" />
+                      </div>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', display: 'block', lineHeight: 1.4 }}>
+                        Credited directly to host wallet.
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                      <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#10b981', lineHeight: 1 }}>
+                        {hostCoinSharePct.toFixed(1)}%
+                      </div>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>auto-calculated</span>
+                    </div>
+                  </div>
+
+                  {/* Card 4: User P2P Transfer Fee */}
+                  <div
+                    style={{
+                      padding: '1.1rem',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(25, 20, 10, 0.4) 100%)',
+                      border: '1px solid rgba(245, 158, 11, 0.25)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                          User P2P Transfer Fee
+                        </span>
+                        <ArrowRightLeft size={16} color="#f59e0b" />
+                      </div>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', display: 'block', lineHeight: 1.4 }}>
+                        Fee on peer-to-peer coin transfers.
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max="100"
+                        className="input-field"
+                        style={{ maxWidth: '130px', fontWeight: 700, fontSize: '1rem', color: '#f59e0b' }}
+                        value={settings.user_transfer_commission_percent || '5.0'}
+                        onChange={(e) => handleChange('user_transfer_commission_percent', e.target.value)}
+                      />
+                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f59e0b' }}>%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Visual Progress Bar */}
+                <div style={{ padding: '0.9rem 1.1rem', borderRadius: '12px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 700, marginBottom: '8px' }}>
+                    <span style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+                      Admin: {adminGiftPct}%
+                    </span>
+                    <span style={{ color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
+                      Agency: {agencyGiftPct}%
+                    </span>
+                    <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                      Host Share: {hostCoinSharePct.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div style={{ height: '14px', borderRadius: '7px', overflow: 'hidden', display: 'flex', background: 'rgba(255,255,255,0.06)', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4)' }}>
+                    <div style={{ width: `${Math.min(100, adminGiftPct)}%`, background: '#ef4444', transition: 'width 0.3s ease' }} title={`Admin ${adminGiftPct}%`} />
+                    <div style={{ width: `${Math.min(100 - adminGiftPct, agencyGiftPct)}%`, background: '#3b82f6', transition: 'width 0.3s ease' }} title={`Agency ${agencyGiftPct}%`} />
+                    <div style={{ width: `${Math.max(0, hostCoinSharePct)}%`, background: '#10b981', transition: 'width 0.3s ease' }} title={`Host ${hostCoinSharePct}%`} />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION: CASHOUT & HOST WITHDRAWAL ENGINE */}
+              <div
+                style={{
+                  borderTop: '1px solid var(--border-color)',
+                  paddingTop: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1.25rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      background: 'rgba(139, 92, 246, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <DollarSign size={18} color="#8b5cf6" />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                      Cashout & Host Withdrawal Engine
+                    </h4>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                      Host withdrawal threshold, custom amount input permission, and mobile quick preset buttons
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+                  {/* Left: Threshold & Custom Input */}
+                  <div
+                    style={{
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '12px',
+                      padding: '1.25rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1.25rem',
+                    }}
+                  >
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                        Minimum {isDiamondMode ? 'Diamonds' : 'Coins'} for Cashout
+                      </label>
+                      <div style={{ position: 'relative', maxWidth: '240px' }}>
+                        <input
+                          type="number"
+                          min="1"
+                          className="input-field"
+                          style={{ paddingLeft: '2.4rem', fontWeight: 700 }}
+                          value={settings.min_withdrawal_diamonds || '1000'}
+                          onChange={(e) => handleChange('min_withdrawal_diamonds', e.target.value)}
+                        />
+                        <div style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', display: 'flex' }}>
+                          {isDiamondMode ? <Gem size={16} color="#8b5cf6" /> : <Coins size={16} color="#f59e0b" />}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px', display: 'block' }}>
+                        Minimum balance required before a host can submit a withdrawal request.
+                      </span>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+                        Allow Custom Manual Input for Withdrawal
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        <div
+                          onClick={() => handleChange('allow_manual_withdrawal_input', 'true')}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                            border: settings.allow_manual_withdrawal_input !== 'false' ? '2px solid #10b981' : '1px solid var(--border-color)',
+                            background: settings.allow_manual_withdrawal_input !== 'false' ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          <CheckCircle2 size={16} color={settings.allow_manual_withdrawal_input !== 'false' ? '#10b981' : 'var(--text-dim)'} />
+                          <div>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: settings.allow_manual_withdrawal_input !== 'false' ? '#10b981' : 'var(--text-main)', display: 'block' }}>
+                              Enabled
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Custom input</span>
+                          </div>
+                        </div>
+
+                        <div
+                          onClick={() => handleChange('allow_manual_withdrawal_input', 'false')}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                            border: settings.allow_manual_withdrawal_input === 'false' ? '2px solid #ef4444' : '1px solid var(--border-color)',
+                            background: settings.allow_manual_withdrawal_input === 'false' ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          <AlertTriangle size={16} color={settings.allow_manual_withdrawal_input === 'false' ? '#ef4444' : 'var(--text-dim)'} />
+                          <div>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: settings.allow_manual_withdrawal_input === 'false' ? '#ef4444' : 'var(--text-main)', display: 'block' }}>
+                              Disabled
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Presets only</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Cashout Presets - Alada Alada Chips */}
+                  <div
+                    style={{
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '12px',
+                      padding: '1.25rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '1rem',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <div>
+                          <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                            Cashout Quick Presets ({isDiamondMode ? '💎 Diamonds' : '🪙 Coins'})
+                          </label>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', display: 'block', marginTop: '2px' }}>
+                            Interactive buttons shown on the mobile host cashout screen.
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleResetWithdrawalPresets}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-dim)',
+                            fontSize: '0.72rem',
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                          }}
+                        >
+                          Reset Defaults
+                        </button>
+                      </div>
+
+                      {/* Chips Container */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', margin: '0.75rem 0' }}>
+                        {parsePresetsList(settings.withdrawal_presets, [1000, 2000, 5000, 10000, 25000, 50000]).map((num) => (
+                          <div
+                            key={num}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '5px 12px',
+                              borderRadius: '20px',
+                              background: 'rgba(139, 92, 246, 0.12)',
+                              border: '1px solid rgba(139, 92, 246, 0.35)',
+                              color: '#c4b5fd',
+                              fontWeight: 700,
+                              fontSize: '0.84rem',
+                            }}
+                          >
+                            <span>{isDiamondMode ? '💎' : '🪙'} {Number(num).toLocaleString()}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveWithdrawalPreset(num)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: 'rgba(255, 255, 255, 0.6)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '2px',
+                                borderRadius: '50%',
+                              }}
+                              title="Remove this preset"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Add New Preset Input */}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="e.g. 15000"
+                        className="input-field"
+                        style={{ maxWidth: '160px' }}
+                        value={newWithdrawalPreset}
+                        onChange={(e) => setNewWithdrawalPreset(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddWithdrawalPreset();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={handleAddWithdrawalPreset}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '8px 14px' }}
+                      >
+                        <Plus size={14} />
+                        <span>Add Preset</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION: RECHARGE PRESETS & WELCOME INCENTIVES */}
+              <div
+                style={{
+                  borderTop: '1px solid var(--border-color)',
+                  paddingTop: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1.25rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      background: 'rgba(245, 158, 11, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Coins size={18} color="#f59e0b" />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                      Wallet Recharge & New User Registration Incentives
+                    </h4>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                      Quick buy coin presets for mobile recharge and free welcome bonus coins for new accounts
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+                  {/* Left: Recharge Coin Presets - Alada Alada Chips */}
+                  <div
+                    style={{
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '12px',
+                      padding: '1.25rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '1rem',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <div>
+                          <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                            Recharge Coin Presets 🪙
+                          </label>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', display: 'block', marginTop: '2px' }}>
+                            Quick buy options shown on user wallet recharge screen.
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleResetRechargePresets}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-dim)',
+                            fontSize: '0.72rem',
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                          }}
+                        >
+                          Reset Defaults
+                        </button>
+                      </div>
+
+                      {/* Chips Container */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', margin: '0.75rem 0' }}>
+                        {parsePresetsList(settings.recharge_presets, [500, 1000, 2500, 5000, 10000, 50000, 100000]).map((num) => (
+                          <div
+                            key={num}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '5px 12px',
+                              borderRadius: '20px',
+                              background: 'rgba(245, 158, 11, 0.12)',
+                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                              color: '#fbbf24',
+                              fontWeight: 700,
+                              fontSize: '0.84rem',
+                            }}
+                          >
+                            <span>🪙 {Number(num).toLocaleString()}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveRechargePreset(num)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: 'rgba(255, 255, 255, 0.6)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '2px',
+                                borderRadius: '50%',
+                              }}
+                              title="Remove this preset"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Add New Recharge Preset Form */}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="e.g. 250000"
+                        className="input-field"
+                        style={{ maxWidth: '160px' }}
+                        value={newRechargePreset}
+                        onChange={(e) => setNewRechargePreset(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddRechargePreset();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={handleAddRechargePreset}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '8px 14px' }}
+                      >
+                        <Plus size={14} />
+                        <span>Add Preset</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right: New User Registration Welcome Bonus Card */}
+                  <div
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(20, 15, 10, 0.45) 100%)',
+                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                      borderRadius: '12px',
+                      padding: '1.25rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '1rem',
+                      position: 'relative',
+                      boxShadow: '0 4px 20px rgba(245, 158, 11, 0.08)',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Gift size={18} color="#f59e0b" />
+                          <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                            New User Registration Welcome Coins
+                          </label>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            background: 'rgba(245, 158, 11, 0.15)',
+                            color: '#f59e0b',
+                            border: '1px solid rgba(245, 158, 11, 0.3)',
+                          }}
+                        >
+                          Auto Credited
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', lineHeight: 1.4 }}>
+                        Free bonus coins granted to newly created accounts on registration (Email, Google, Guest).
+                      </span>
+
+                      {/* Quick Select Buttons */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '0.85rem 0' }}>
+                        {[0, 50, 100, 200, 500, 1000].map((amount) => {
+                          const isSelected = String(settings.default_registration_coins ?? '100') === String(amount);
+                          return (
+                            <button
+                              key={amount}
+                              type="button"
+                              onClick={() => handleChange('default_registration_coins', String(amount))}
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: '16px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                background: isSelected ? '#f59e0b' : 'rgba(255, 255, 255, 0.05)',
+                                color: isSelected ? '#000000' : 'var(--text-main)',
+                                border: isSelected ? '1px solid #f59e0b' : '1px solid var(--border-color)',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              {amount === 0 ? '0 (None)' : `${amount} Coins`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                        Or Enter Custom Coins Amount:
+                      </label>
+                      <div style={{ position: 'relative', maxWidth: '200px' }}>
+                        <input
+                          type="number"
+                          className="input-field"
+                          min="0"
+                          value={settings.default_registration_coins ?? '100'}
+                          onChange={(e) => handleChange('default_registration_coins', e.target.value)}
+                          placeholder="100"
+                          style={{ paddingLeft: '2.4rem', fontWeight: 700, fontSize: '1rem', color: '#f59e0b' }}
+                        />
+                        <Coins size={16} color="#f59e0b" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dedicated Economy Save Button */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSaveEconomy}
+                  disabled={savingEconomy || saving}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#8b5cf6', borderColor: '#7c3aed' }}
+                >
+                  <Save size={16} />
+                  <span>{savingEconomy ? 'Saving Economy Settings...' : 'Save Economy Configuration'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Danger Zone: System-Wide Wallet Reset */}
+          <div className="panel-card" style={{ border: '1px solid rgba(239, 68, 68, 0.45)', background: 'linear-gradient(180deg, rgba(239, 68, 68, 0.06) 0%, rgba(20, 10, 15, 0.45) 100%)' }}>
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle size={22} color="#ef4444" />
+                <span style={{ color: '#ef4444', fontWeight: 700 }}>System-Wide Wallet Balances Reset (Danger Zone)</span>
+              </div>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  color: '#ef4444',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  padding: '4px 10px',
+                  borderRadius: '20px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                }}
+              >
+                <Lock size={12} />
+                Requires Action Security Password
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', margin: 0, lineHeight: 1.5 }}>
+                Reset all users' coin or diamond balances across the entire platform. This is an irreversible bulk operation protected by the platform's Admin Action Security Password. User balances in MySQL and cached states in Redis are instantly updated.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
+                {/* Option 1: Reset All Coins */}
+                <div
+                  style={{
+                    background: 'var(--bg-primary)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    borderRadius: '12px',
+                    padding: '1.25rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '1rem',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
+                      <Coins size={20} color="#f59e0b" />
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                        Reset All Users' Coins
+                      </h4>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
+                      Sets <code style={{ color: '#f59e0b' }}>coins = 0</code> for every user in the platform. Diamond balances remain completely untouched.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenResetModal('coins')}
+                    style={{
+                      background: 'rgba(245, 158, 11, 0.15)',
+                      border: '1px solid #f59e0b',
+                      color: '#f59e0b',
+                      borderRadius: '8px',
+                      padding: '8px 14px',
+                      fontWeight: 600,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Coins size={15} />
+                    <span>Reset All Coins to 0</span>
+                  </button>
+                </div>
+
+                {/* Option 2: Reset All Diamonds */}
+                <div
+                  style={{
+                    background: 'var(--bg-primary)',
+                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                    borderRadius: '12px',
+                    padding: '1.25rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '1rem',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
+                      <Gem size={20} color="#8b5cf6" />
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                        Reset All Users' Diamonds
+                      </h4>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
+                      Sets <code style={{ color: '#8b5cf6' }}>diamonds = 0</code> for every user in the platform. Coin balances remain completely untouched.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenResetModal('diamonds')}
+                    style={{
+                      background: 'rgba(139, 92, 246, 0.15)',
+                      border: '1px solid #8b5cf6',
+                      color: '#a78bfa',
+                      borderRadius: '8px',
+                      padding: '8px 14px',
+                      fontWeight: 600,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Gem size={15} />
+                    <span>Reset All Diamonds to 0</span>
+                  </button>
+                </div>
+
+                {/* Option 3: Reset Both Coins & Diamonds */}
+                <div
+                  style={{
+                    background: 'var(--bg-primary)',
+                    border: '1px solid rgba(239, 68, 68, 0.45)',
+                    borderRadius: '12px',
+                    padding: '1.25rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '1rem',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
+                      <Trash2 size={20} color="#ef4444" />
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#ef4444' }}>
+                        Reset All Wallets (Zero All)
+                      </h4>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
+                      Sets both <code style={{ color: '#ef4444' }}>coins = 0 AND diamonds = 0</code> for all users in the system simultaneously.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenResetModal('all')}
+                    style={{
+                      background: '#ef4444',
+                      border: 'none',
+                      color: '#ffffff',
+                      borderRadius: '8px',
+                      padding: '8px 14px',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 10px rgba(239, 68, 68, 0.35)',
+                    }}
+                  >
+                    <Trash2 size={15} />
+                    <span>Reset All Wallets to 0</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT 2: LIVEKIT & WEBRTC ENGINE */}
+      {activeTab === 'streaming' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div className="panel-card" style={{ border: '1px solid rgba(6, 182, 212, 0.35)' }}>
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="panel-title">
+                <Server size={22} color="#06b6d4" />
+                <span>LiveKit & WebRTC Streaming Engine</span>
+              </div>
+              {settings.livekit_url && settings.livekit_api_key ? (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    color: '#10b981',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    padding: '5px 12px',
+                    borderRadius: '20px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  <Wifi size={14} /> Active & Connected
+                </span>
+              ) : (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    color: '#ef4444',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    padding: '5px 12px',
+                    borderRadius: '20px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  <AlertTriangle size={14} /> Incomplete Credentials
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.35rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    Streaming Infrastructure Provider
+                  </label>
+                  <select
+                    className="select-field"
+                    style={{ width: '100%' }}
+                    value={settings.live_stream_provider || 'livekit'}
+                    onChange={(e) => handleChange('live_stream_provider', e.target.value)}
+                  >
+                    <option value="livekit">LiveKit Cloud / Self-hosted WebRTC (Recommended)</option>
+                    <option value="agora">Agora RTC Engine</option>
+                    <option value="rtmp">Native RTMP / HLS Streamer</option>
+                  </select>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
+                    Sub-100ms ultra low-latency WebRTC SFU mesh for video & multi-seat audio parties.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    Platform Display Name
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ width: '100%' }}
+                    value={settings.platform_name || 'HD Live'}
+                    onChange={(e) => handleChange('platform_name', e.target.value)}
+                    placeholder="e.g. HD Live"
+                  />
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
+                    App identifier attached to room metadata and connection handshakes.
+                  </div>
+                </div>
+              </div>
+
+              {/* LiveKit Server / Cloud URL */}
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                  <Wifi size={15} color="#06b6d4" />
+                  LiveKit WebSocket Server URL (<code style={{ color: '#06b6d4' }}>livekit_url</code>)
+                </label>
+                <input
+                  type="text"
+                  className="input-field"
+                  style={{ width: '100%', fontFamily: 'var(--font-mono)' }}
+                  value={settings.livekit_url || ''}
+                  onChange={(e) => handleChange('livekit_url', e.target.value)}
+                  placeholder="wss://your-project.livekit.cloud or ws://192.168.0.105:7880"
+                />
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.3rem' }}>
+                  Your LiveKit Cloud or self-hosted server WebSocket URL. The Flutter mobile app dynamically connects to this host.
+                </div>
+              </div>
+
+              {/* API Key and API Secret */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    <Key size={15} color="#3b82f6" />
+                    LiveKit API Key (<code style={{ color: '#3b82f6' }}>livekit_api_key</code>)
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ width: '100%', fontFamily: 'var(--font-mono)' }}
+                    value={settings.livekit_api_key || ''}
+                    onChange={(e) => handleChange('livekit_api_key', e.target.value)}
+                    placeholder="e.g. APIxxxxxxxxxxxx"
+                  />
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.3rem' }}>
+                    Project API Key created from LiveKit Cloud console or self-hosted config.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Lock size={15} color="#ef4444" />
+                      LiveKit API Secret (<code style={{ color: '#ef4444' }}>livekit_api_secret</code>)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowLivekitSecret(!showLivekitSecret)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-dim)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '0.75rem',
+                        padding: 0,
+                      }}
+                    >
+                      {showLivekitSecret ? <EyeOff size={13} /> : <Eye size={13} />}
+                      <span>{showLivekitSecret ? 'Hide' : 'Show'}</span>
+                    </button>
+                  </label>
+                  <input
+                    type={showLivekitSecret ? 'text' : 'password'}
+                    className="input-field"
+                    style={{ width: '100%', fontFamily: 'var(--font-mono)' }}
+                    value={settings.livekit_api_secret || ''}
+                    onChange={(e) => handleChange('livekit_api_secret', e.target.value)}
+                    placeholder="e.g. secret_xxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  />
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.3rem' }}>
+                    Kept strictly secure on the backend. Used to generate participant JWT room tokens.
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile App Dynamic Integration Box */}
+              <div
+                style={{
+                  background: 'rgba(6, 182, 212, 0.05)',
+                  border: '1px solid rgba(6, 182, 212, 0.25)',
+                  borderRadius: '10px',
+                  padding: '1.25rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '0.9rem', color: '#06b6d4' }}>
+                    <Sparkles size={18} />
+                    <span>Dynamic Mobile Integration (Zero Recompilation)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText('/api/mobile/config/livekit');
+                      setCopiedEndpoint(true);
+                      setTimeout(() => setCopiedEndpoint(false), 2000);
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.75rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    {copiedEndpoint ? <Check size={13} color="#10b981" /> : <Copy size={13} />}
+                    <span>{copiedEndpoint ? 'Copied Path!' : 'Copy API Path'}</span>
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                  The Flutter mobile app queries the endpoints below at runtime to dynamically connect to the active LiveKit server:
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.78rem', background: 'var(--bg-secondary)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                    <span style={{ color: '#10b981', fontWeight: 800 }}>GET</span>
+                    <code style={{ color: 'var(--text-main)', flex: 1, fontFamily: 'var(--font-mono)' }}>/api/mobile/config/livekit</code>
+                    <span style={{ color: 'var(--text-dim)' }}>Returns livekit_url, server_url, provider & api_key</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.78rem', background: 'var(--bg-secondary)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                    <span style={{ color: '#3b82f6', fontWeight: 800 }}>POST</span>
+                    <code style={{ color: 'var(--text-main)', flex: 1, fontFamily: 'var(--font-mono)' }}>/api/mobile/live/rooms/:roomId/livekit-token</code>
+                    <span style={{ color: 'var(--text-dim)' }}>Returns dynamic participant token & server URL</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Direct Save Button */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSaveLivekit}
+                  disabled={savingLivekit || saving}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#06b6d4', borderColor: '#0891b2' }}
+                >
+                  <Save size={16} />
+                  <span>{savingLivekit ? 'Saving LiveKit...' : 'Save LiveKit Credentials'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Reconnection Grace Period Panel */}
+          <div className="panel-card" style={{ border: '1px solid rgba(168, 85, 247, 0.35)' }}>
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="panel-title">
+                <Activity size={22} color="#a855f7" />
+                <span>Live Stream Disconnection & Reconnection Grace Periods</span>
+              </div>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  background: 'rgba(168, 85, 247, 0.12)',
+                  color: '#a855f7',
+                  border: '1px solid rgba(168, 85, 247, 0.3)',
+                  padding: '5px 12px',
+                  borderRadius: '20px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                }}
+              >
+                ⏱️ Real-time Socket Protection
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.35rem' }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                Configure how long the system waits when a host or seated co-host experiences an unexpected internet drop, socket disconnection, or app closure. If they reconnect within this time window, their room and seats remain completely preserved without being closed or evicted.
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                {/* Host Grace Period */}
+                <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      👑 Host Disconnect Grace Period
+                    </span>
+                    <span style={{ color: '#a855f7', fontWeight: 700, fontSize: '0.8rem' }}>
+                      {settings.host_disconnect_grace_period_seconds || '90'}s ({((parseInt(settings.host_disconnect_grace_period_seconds, 10) || 90) / 60).toFixed(1)} min)
+                    </span>
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="number"
+                      min="10"
+                      max="600"
+                      className="input-field"
+                      style={{ width: '100%', fontFamily: 'var(--font-mono)' }}
+                      value={settings.host_disconnect_grace_period_seconds ?? '90'}
+                      onChange={(e) => handleChange('host_disconnect_grace_period_seconds', e.target.value)}
+                      placeholder="e.g. 90"
+                    />
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-dim)', fontWeight: 600 }}>Sec</span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.4rem', lineHeight: 1.4 }}>
+                    If the room host's internet disconnects, wait this many seconds before terminating the live room. (Default: 90s / 1.5 mins)
+                  </div>
+                </div>
+
+                {/* Participant / Seated Guest Grace Period */}
+                <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      🎙️ Seated Guest / Co-host Grace Period
+                    </span>
+                    <span style={{ color: '#06b6d4', fontWeight: 700, fontSize: '0.8rem' }}>
+                      {settings.guest_seat_disconnect_grace_period_seconds || '60'}s ({((parseInt(settings.guest_seat_disconnect_grace_period_seconds, 10) || 60) / 60).toFixed(1)} min)
+                    </span>
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="number"
+                      min="10"
+                      max="300"
+                      className="input-field"
+                      style={{ width: '100%', fontFamily: 'var(--font-mono)' }}
+                      value={settings.guest_seat_disconnect_grace_period_seconds ?? '60'}
+                      onChange={(e) => handleChange('guest_seat_disconnect_grace_period_seconds', e.target.value)}
+                      placeholder="e.g. 60"
+                    />
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-dim)', fontWeight: 600 }}>Sec</span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.4rem', lineHeight: 1.4 }}>
+                    If a seated participant loses internet or closes the app, hold and lock their seat for this many seconds before removing them. (Default: 60s / 1 min)
+                  </div>
+                </div>
+              </div>
+
+              {/* Direct Save Button */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSaveGracePeriod}
+                  disabled={savingGracePeriod || saving}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#a855f7', borderColor: '#9333ea' }}
+                >
+                  <Save size={16} />
+                  <span>{savingGracePeriod ? 'Saving...' : 'Save Grace Period Settings'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT 3: ROOM THUMBNAIL DURATION PRICING */}
+      {activeTab === 'monetization' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div className="panel-card" style={{ border: '1px solid rgba(236, 72, 153, 0.35)' }}>
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="panel-title">
+                <ImageIcon size={22} color="#ec4899" />
+                <span>Custom Room Thumbnail & Background Duration Pricing</span>
+              </div>
+              <span className="badge badge-success" style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+                User Monetization
+              </span>
+            </div>
+
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-dim)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+              Configure how many days a user-uploaded custom thumbnail remains active and how many coins it costs for each duration tier.
+              When uploaded, the custom thumbnail is private to the user and will <strong>never</strong> appear in the public catalog for others.
+            </p>
+
+            {/* Dynamic Pricing Plans Table / Cards */}
+            <div
+              style={{
+                background: 'rgba(236, 72, 153, 0.04)',
+                borderRadius: '12px',
+                border: '1px solid rgba(236, 72, 153, 0.25)',
+                padding: '1.25rem',
+                marginBottom: '1.25rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Calendar size={18} color="#ec4899" />
+                  <span style={{ fontWeight: 700, fontSize: '0.94rem', color: '#db2777' }}>
+                    Duration Plans & Coin Pricing Tiers
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleAddTier}
+                  style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+                >
+                  <Plus size={14} />
+                  <span>Add New Plan</span>
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                {pricingTiers.map((tier, idx) => {
+                  const dailyCost = tier.days > 0 ? (tier.coins / tier.days).toFixed(1) : 0;
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '10px',
+                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--border-color)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.75rem',
+                        position: 'relative',
+                        boxShadow: 'var(--shadow-sm)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#ec4899', textTransform: 'uppercase' }}>
+                          Tier #{idx + 1}
+                        </span>
+                        {pricingTiers.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTier(idx)}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0 }}
+                            title="Delete tier"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        <div>
+                          <label style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block', marginBottom: '2px' }}>
+                            Validity (Days):
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            className="input-field"
+                            value={tier.days}
+                            onChange={(e) => handleTierChange(idx, 'days', e.target.value)}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block', marginBottom: '2px' }}>
+                            Cost (Coins):
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            className="input-field"
+                            value={tier.coins}
+                            onChange={(e) => handleTierChange(idx, 'coins', e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: '0.75rem', color: '#ec4899', fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
+                        <span>🪙 {tier.coins} Coins</span>
+                        <span>~{dailyCost} coins/day</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={handleSaveTiers}
+                  disabled={saving}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ec4899', borderColor: '#db2777' }}
+                >
+                  <Save size={15} />
+                  <span>Save Duration Pricing Plans</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: SUPER ADMIN PROFILE */}
+      {activeTab === 'profile' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {loadingProfile ? (
+            <div className="panel-card" style={{ padding: '3rem', textAlign: 'center' }}>
+              <RefreshCw size={28} className="spin" color="var(--primary)" style={{ margin: '0 auto 12px' }} />
+              <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>Loading Super Admin profile...</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+              {/* Profile Card Preview */}
+              <div
+                className="panel-card"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  textAlign: 'center',
+                  padding: '2.5rem 1.75rem',
+                  background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(16, 185, 129, 0.05) 100%)',
+                  border: '1px solid rgba(124, 58, 237, 0.3)',
+                  borderRadius: '18px',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '-40px',
+                    right: '-40px',
+                    width: '120px',
+                    height: '120px',
+                    borderRadius: '50%',
+                    background: 'radial-gradient(circle, rgba(124, 58, 237, 0.25) 0%, transparent 70%)',
+                    pointerEvents: 'none',
+                  }}
+                />
+
+                {/* Avatar with Glow Ring */}
+                <div style={{ position: 'relative', marginBottom: '1.25rem' }}>
+                  <div
+                    style={{
+                      width: '110px',
+                      height: '110px',
+                      borderRadius: '50%',
+                      padding: '4px',
+                      background: 'linear-gradient(135deg, #7c3aed, #10b981)',
+                      boxShadow: '0 8px 24px rgba(124, 58, 237, 0.35)',
+                    }}
+                  >
+                    <img
+                      src={resolveAssetUrl(adminProfile.avatar_url) || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'}
+                      alt="Super Admin Avatar"
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        borderRadius: '50%',
+                        background: '#1e1e2d',
+                      }}
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200';
+                      }}
+                    />
+                  </div>
+                  <span
+                    style={{
+                      position: 'absolute',
+                      bottom: '4px',
+                      right: '6px',
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      background: '#10b981',
+                      border: '3px solid var(--card-bg, #1a1a2e)',
+                      boxShadow: '0 0 10px #10b981',
+                    }}
+                    title="Active Super Admin"
+                  />
+                </div>
+
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', background: 'rgba(124, 58, 237, 0.15)', border: '1px solid rgba(124, 58, 237, 0.4)', marginBottom: '0.75rem' }}>
+                  <Crown size={14} color="#a855f7" />
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c084fc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {adminProfile.role || 'Super Admin'}
+                  </span>
+                </div>
+
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 0.25rem 0' }}>
+                  {adminProfile.full_name || 'Super Admin'}
+                </h2>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', margin: '0 0 1.25rem 0' }}>
+                  {adminProfile.email || 'admin@umi.live'}
+                </p>
+
+                {adminProfile.bio && (
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-dim)', margin: '0 0 1.25rem 0', fontStyle: 'italic', maxWidth: '300px' }}>
+                    "{adminProfile.bio}"
+                  </p>
+                )}
+
+                <div
+                  style={{
+                    width: '100%',
+                    padding: '0.9rem 1rem',
+                    borderRadius: '12px',
+                    background: 'rgba(0, 0, 0, 0.2)',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    fontSize: '0.8rem',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)' }}>
+                    <span>Account ID</span>
+                    <strong style={{ color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>#{adminProfile.id || 1}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)' }}>
+                    <span>Permissions</span>
+                    <strong style={{ color: '#10b981' }}>Full Platform Control</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)' }}>
+                    <span>Live Synchronization</span>
+                    <strong style={{ color: '#3b82f6' }}>Instant Redis & Sidebar</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Edit Profile Form Card */}
+              <form
+                onSubmit={handleSaveAdminProfile}
+                className="panel-card"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1.25rem',
+                  border: '1px solid rgba(124, 58, 237, 0.3)',
+                  borderRadius: '18px',
+                }}
+              >
+                <div className="panel-header" style={{ marginBottom: 0 }}>
+                  <div className="panel-title">
+                    <UserCheck size={22} color="#8b5cf6" />
+                    <span>Edit Super Admin Account</span>
+                  </div>
+                  <span className="badge badge-success" style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+                    Root Credentials
+                  </span>
+                </div>
+
+                <p style={{ fontSize: '0.84rem', color: 'var(--text-dim)', margin: 0, lineHeight: 1.5 }}>
+                  Change your display name and profile picture. The updated picture and name will immediately appear on your Admin Panel topbar, sidebar footer, and database.
+                </p>
+
+                {/* Profile Picture Upload & URL */}
+                <div>
+                  <FileUploadInput
+                    label="Super Admin Profile Picture"
+                    value={adminProfile.avatar_url || ''}
+                    onChange={(url) => setAdminProfile((prev) => ({ ...prev, avatar_url: url }))}
+                    category="avatars"
+                    placeholder="https://... or upload image from your computer"
+                    helperText="Upload JPG, PNG, WEBP or paste external image URL."
+                    onToast={onToast}
+                  />
+                </div>
+
+                {/* Full Name */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
+                    Display Name <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ width: '100%' }}
+                    value={adminProfile.full_name || ''}
+                    onChange={(e) => setAdminProfile((prev) => ({ ...prev, full_name: e.target.value }))}
+                    placeholder="e.g. Master Admin / Super Admin"
+                    required
+                  />
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
+                    Admin Email Address <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="email"
+                    className="input-field"
+                    style={{ width: '100%' }}
+                    value={adminProfile.email || ''}
+                    onChange={(e) => setAdminProfile((prev) => ({ ...prev, email: e.target.value }))}
+                    placeholder="admin@umi.live"
+                    required
+                  />
+                </div>
+
+                {/* Bio / Title */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
+                    Admin Bio / Tagline (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ width: '100%' }}
+                    value={adminProfile.bio || ''}
+                    onChange={(e) => setAdminProfile((prev) => ({ ...prev, bio: e.target.value }))}
+                    placeholder="e.g. Platform Owner & Chief Administrator"
+                  />
+                </div>
+
+                {/* Optional Password Change */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
+                    New Admin Password <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-dim)' }}>(Leave blank to keep current password)</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showAdminPassword ? 'text' : 'password'}
+                      className="input-field"
+                      style={{ width: '100%', paddingRight: '2.5rem' }}
+                      value={adminProfile.password || ''}
+                      onChange={(e) => setAdminProfile((prev) => ({ ...prev, password: e.target.value }))}
+                      placeholder="Enter new login password if changing..."
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPassword(!showAdminPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-dim)',
+                        padding: 0,
+                      }}
+                      title={showAdminPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showAdminPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={fetchAdminProfile}
+                    disabled={savingProfile}
+                  >
+                    Reset Form
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={savingProfile}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+                      boxShadow: '0 4px 14px rgba(124, 58, 237, 0.35)',
+                    }}
+                  >
+                    {savingProfile ? (
+                      <>
+                        <RefreshCw size={16} className="spin" />
+                        <span>Updating Profile...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} />
+                        <span>Save Super Admin Profile</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB CONTENT 4: FINANCIAL SECURITY & PASSWORDS */}
+      {activeTab === 'security' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div
+            className="panel-card"
+            style={{
+              border: '1px solid rgba(124, 58, 237, 0.35)',
+              background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.04) 0%, rgba(2, 132, 199, 0.04) 100%)',
+            }}
+          >
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="panel-title">
+                <Lock size={22} color="#7c3aed" />
+                <span>Security Action Password (Coin Recharge & Deductions)</span>
+              </div>
+              <span className="badge badge-primary" style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+                Critical Financial Lock
+              </span>
+            </div>
+
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-dim)', marginBottom: '1.5rem', lineHeight: 1.6 }}>
+              This security password is required whenever administrators <strong>recharge coins</strong> for users or <strong>deduct coins / diamonds</strong> from user balances. Only administrators with this authorization password can approve financial balance modifications.
+            </p>
+
+            <div style={{ maxWidth: '480px' }}>
+              <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
+                Admin Action Password
+              </label>
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    type={showActionPassword ? 'text' : 'password'}
+                    className="input-field"
+                    style={{ width: '100%', paddingRight: '2.5rem', fontFamily: 'var(--font-mono)' }}
+                    placeholder="Enter security password..."
+                    value={settings.action_security_password || 'admin123'}
+                    onChange={(e) => handleChange('action_security_password', e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowActionPassword(!showActionPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-dim)',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                    title={showActionPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showActionPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSaveSecurity}
+                  disabled={savingSecurity || saving}
+                  style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Save size={15} />
+                  <span>{savingSecurity ? 'Saving...' : 'Save Password'}</span>
+                </button>
+              </div>
+              <span style={{ fontSize: '0.76rem', color: 'var(--text-dim)', marginTop: '6px', display: 'block' }}>
+                Current default is: <code style={{ color: '#7c3aed', fontWeight: 700 }}>admin123</code>. You can change this to any secure alphanumeric key.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT 5: SYSTEM & BRANDING */}
+      {activeTab === 'system' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Card 1: Global Platform Branding (Single Centralized Control) */}
+          <div className="panel-card" style={{ border: '1px solid rgba(124, 58, 237, 0.35)', background: 'var(--bg-card)' }}>
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="panel-title">
+                <Sparkles size={22} color="#7c3aed" />
+                <span>Global Platform Branding & App Identity</span>
+              </div>
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  padding: '4px 10px',
+                  borderRadius: '20px',
+                  background: 'rgba(124, 58, 237, 0.12)',
+                  color: '#7c3aed',
+                  border: '1px solid rgba(124, 58, 237, 0.3)',
+                }}
+              >
+                Single Control Center
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', margin: 0, lineHeight: 1.5 }}>
+                Update your platform name and logo from this single place. Changes automatically propagate across the entire Admin Panel (Sidebar, Login screen, browser tab title, dashboard) and mobile apps in real time.
+              </p>
+
+              {/* Logo Upload & Live Preview Section */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1.5rem',
+                  padding: '1.25rem',
+                  borderRadius: '14px',
+                  background: 'var(--bg-primary)',
+                  border: '1px solid var(--border-color)',
+                  flexWrap: 'wrap',
+                }}
+              >
+                {/* Visual Preview Box */}
+                <div
+                  style={{
+                    width: '72px',
+                    height: '72px',
+                    borderRadius: '20px',
+                    background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '2rem',
+                    color: '#fff',
+                    boxShadow: '0 8px 20px rgba(124, 58, 237, 0.3)',
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                    border: '2px solid rgba(255, 255, 255, 0.2)',
+                  }}
+                >
+                  {(settings.platform_logo_url || settings.app_logo_url) ? (
+                    <img
+                      src={resolveAssetUrl(settings.platform_logo_url || settings.app_logo_url)}
+                      alt="Brand Logo"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        const fallback = e.currentTarget.parentElement?.querySelector('.settings-logo-fallback');
+                        if (fallback) fallback.style.display = 'inline';
+                      }}
+                    />
+                  ) : null}
+                  <span
+                    className="settings-logo-fallback"
+                    style={{ display: (settings.platform_logo_url || settings.app_logo_url) ? 'none' : 'inline' }}
+                  >
+                    ⚡
+                  </span>
+                </div>
+
+                {/* Upload Actions & Direct URL */}
+                <div style={{ flex: 1, minWidth: '260px', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <label
+                      className="btn btn-primary btn-sm"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: uploadingLogo ? 'not-allowed' : 'pointer',
+                        background: '#7c3aed',
+                        borderColor: '#6d28d9',
+                        padding: '0.55rem 1rem',
+                      }}
+                    >
+                      <Upload size={15} />
+                      <span>{uploadingLogo ? 'Uploading Logo...' : 'Upload Logo from Computer'}</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        style={{ display: 'none' }}
+                        disabled={uploadingLogo}
+                        onChange={handleLogoUpload}
+                      />
+                    </label>
+
+                    {(settings.platform_logo_url || settings.app_logo_url) && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          handleChange('platform_logo_url', '');
+                          handleChange('app_logo_url', '');
+                        }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#ef4444' }}
+                      >
+                        <Trash2 size={14} />
+                        <span>Remove Logo</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Direct Logo URL Input */}
+                  <div>
+                    <input
+                      type="text"
+                      className="input-field"
+                      style={{ width: '100%', fontSize: '0.85rem' }}
+                      value={settings.platform_logo_url || settings.app_logo_url || ''}
+                      onChange={(e) => {
+                        handleChange('platform_logo_url', e.target.value);
+                        handleChange('app_logo_url', e.target.value);
+                      }}
+                      placeholder="Or paste image URL (e.g. /uploads/branding/logo.png or https://...)"
+                    />
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
+                      PNG, SVG, or WebP with transparent background recommended.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Name & Subtitle Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    Platform Brand Name
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ width: '100%', fontWeight: 700 }}
+                    value={settings.platform_name || settings.app_name || 'HD Live'}
+                    onChange={(e) => {
+                      handleChange('platform_name', e.target.value);
+                      handleChange('app_name', e.target.value);
+                    }}
+                    placeholder="e.g. HD Live or Your Brand"
+                  />
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
+                    Appears in Sidebar, Header, Login page, browser title, and mobile app headers.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    Admin Console Tagline / Subtitle
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ width: '100%' }}
+                    value={settings.admin_title || 'Broadcasting & Live Streaming Admin Console'}
+                    onChange={(e) => handleChange('admin_title', e.target.value)}
+                    placeholder="e.g. Broadcasting & Live Streaming Admin Console"
+                  />
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
+                    Appears under the brand name on the Login page.
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                  Client Minimum Supported App Version
+                </label>
+                <input
+                  type="text"
+                  className="input-field"
+                  style={{ maxWidth: '240px' }}
+                  value={settings.min_supported_version || '1.0.0'}
+                  onChange={(e) => handleChange('min_supported_version', e.target.value)}
+                  placeholder="e.g. 1.0.0"
+                />
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
+                  Mobile apps below this version will prompt the user to update.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Platform Maintenance Mode & Mobile API Integration */}
+          <div className="panel-card" style={{ border: settings.maintenance_mode === 'true' ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid rgba(59, 130, 246, 0.35)', background: settings.maintenance_mode === 'true' ? 'linear-gradient(180deg, rgba(239, 68, 68, 0.04) 0%, rgba(20, 20, 30, 0.6) 100%)' : undefined }}>
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <div className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ padding: '8px', borderRadius: '10px', background: settings.maintenance_mode === 'true' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Wrench size={22} color={settings.maintenance_mode === 'true' ? '#ef4444' : '#3b82f6'} />
+                </div>
+                <div>
+                  <span style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>Platform Maintenance Mode & Live Mobile API</span>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                    Controls global mobile app accessibility, maintenance reasons, and <code>/api/mobile/maintenance</code> response
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <a
+                  href="/api/mobile/maintenance"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn"
+                  style={{
+                    fontSize: '0.78rem',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    background: 'rgba(99, 102, 241, 0.12)',
+                    color: '#818cf8',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    textDecoration: 'none',
+                  }}
+                  title="Test Live Mobile API JSON Endpoint"
+                >
+                  <ExternalLink size={14} />
+                  <span>Test API: /api/mobile/maintenance</span>
+                </a>
+
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    background: settings.maintenance_mode === 'true' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.15)',
+                    color: settings.maintenance_mode === 'true' ? '#f87171' : '#34d399',
+                    border: settings.maintenance_mode === 'true' ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(16, 185, 129, 0.4)',
+                    boxShadow: settings.maintenance_mode === 'true' ? '0 0 12px rgba(239, 68, 68, 0.25)' : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: settings.maintenance_mode === 'true' ? '#ef4444' : '#10b981', display: 'inline-block' }} />
+                  {settings.maintenance_mode === 'true' ? 'MAINTENANCE MODE ACTIVE' : 'NORMAL LIVE OPERATIONS'}
+                </span>
+              </div>
+            </div>
+
+            {settings.maintenance_mode === 'true' && (
+              <div style={{ padding: '0.85rem 1.15rem', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.35)', display: 'flex', alignItems: 'center', gap: '10px', marginTop: '1rem', color: '#fca5a5', fontSize: '0.85rem' }}>
+                <AlertTriangle size={20} color="#ef4444" style={{ flexShrink: 0 }} />
+                <div>
+                  <strong>Attention:</strong> Maintenance mode is currently <strong>ACTIVE</strong>. Regular mobile clients and web guests will be shown the maintenance notice screen and will not be able to join broadcasts or make transactions until normal operations are restored.
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginTop: '1.35rem' }}>
+              {/* Left Column: Form Controls */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div style={{ padding: '1rem', borderRadius: '10px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>
+                  <label style={{ display: 'block', fontWeight: 700, color: 'var(--text-main)', fontSize: '0.9rem', marginBottom: '4px' }}>
+                    Emergency / Scheduled Maintenance Status
+                  </label>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginBottom: '10px' }}>
+                    When enabled, the API returns <code>is_maintenance: true</code> and mobile apps immediately present the notice screen.
+                  </div>
+
+                  <select
+                    className="select-field"
+                    style={{ width: '100%', fontWeight: 600, background: settings.maintenance_mode === 'true' ? 'rgba(239, 68, 68, 0.1)' : undefined }}
+                    value={settings.maintenance_mode || 'false'}
+                    onChange={(e) => handleChange('maintenance_mode', e.target.value)}
+                  >
+                    <option value="false">🟢 Disabled (Normal Live Operations - All Users Allowed)</option>
+                    <option value="true">🔴 Enabled (Maintenance Mode - Lock App & Show Notice)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    Maintenance Screen Headline Title (শিরোনাম)
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ width: '100%' }}
+                    value={settings.maintenance_title || ''}
+                    onChange={(e) => handleChange('maintenance_title', e.target.value)}
+                    placeholder="e.g. Under Scheduled Maintenance / সিস্টেম সাময়িক রক্ষণাবেক্ষণে আছে"
+                  />
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px' }}>
+                    Displayed as the primary bold heading on mobile devices.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    Maintenance Reason / Cause (রক্ষণাবেক্ষণের কারণ)
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ width: '100%' }}
+                    value={settings.maintenance_reason || ''}
+                    onChange={(e) => handleChange('maintenance_reason', e.target.value)}
+                    placeholder="e.g. System upgrade and security enhancements in progress / সার্ভার অপ্টিমাইজেশন ও আপডেট চলছে"
+                  />
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px' }}>
+                    Returned via <code>maintenance_reason</code> in API responses and highlighted as a cause badge.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    Estimated Completion Time / ETA (আনুমানিক সময়)
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      className="input-field"
+                      style={{ flex: 1 }}
+                      value={settings.maintenance_eta || ''}
+                      onChange={(e) => handleChange('maintenance_eta', e.target.value)}
+                      placeholder="e.g. 30 Minutes, 1 Hour, or 10:30 PM UTC"
+                    />
+                    {['30 mins', '1 hour', '2 hours', 'Soon'].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => handleChange('maintenance_eta', preset)}
+                        className="btn"
+                        style={{ fontSize: '0.72rem', padding: '4px 8px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-dim)', borderRadius: '6px' }}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px' }}>
+                    Gives users an estimated recovery timeline.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    Comprehensive Notice Message (ব্যবহারকারীদের জন্য বিস্তারিত বার্তা)
+                  </label>
+                  <textarea
+                    className="input-field"
+                    rows={4}
+                    style={{ width: '100%', resize: 'vertical' }}
+                    value={settings.maintenance_message || ''}
+                    onChange={(e) => handleChange('maintenance_message', e.target.value)}
+                    placeholder="Enter comprehensive notice message explaining the maintenance work to mobile users..."
+                  />
+                </div>
+              </div>
+
+              {/* Right Column: Live Mobile App Screen Mockup & Preview */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                    <Smartphone size={18} color="#a855f7" />
+                    <span>Live Mobile App Maintenance Screen Preview</span>
+                  </div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', background: 'var(--bg-primary)', padding: '2px 8px', borderRadius: '4px' }}>
+                    Real-Time Dynamic
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    background: '#0d1117',
+                    border: '2px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '24px',
+                    padding: '24px 20px',
+                    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    textAlign: 'center',
+                    minHeight: '440px',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {/* Top Mobile Notch Bar */}
+                  <div style={{ width: '120px', height: '14px', background: 'rgba(255, 255, 255, 0.12)', borderRadius: '0 0 10px 10px', position: 'absolute', top: 0 }} />
+
+                  {/* App Brand Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '14px', marginBottom: '24px' }}>
+                    {settings.platform_logo_url ? (
+                      <img
+                        src={resolveAssetUrl(settings.platform_logo_url)}
+                        alt="Logo"
+                        style={{ width: '28px', height: '28px', borderRadius: '8px', objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #a855f7, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}>
+                        H
+                      </div>
+                    )}
+                    <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#fff', letterSpacing: '0.5px' }}>
+                      {settings.platform_name || 'HD LIVE'}
+                    </span>
+                  </div>
+
+                  {/* Central Maintenance Visual */}
+                  <div
+                    style={{
+                      width: '84px',
+                      height: '84px',
+                      borderRadius: '50%',
+                      background: settings.maintenance_mode === 'true' ? 'radial-gradient(circle, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.05) 70%)' : 'radial-gradient(circle, rgba(16, 185, 129, 0.25) 0%, rgba(16, 185, 129, 0.05) 70%)',
+                      border: settings.maintenance_mode === 'true' ? '2px dashed rgba(239, 68, 68, 0.5)' : '2px dashed rgba(16, 185, 129, 0.5)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: '16px',
+                    }}
+                  >
+                    {settings.maintenance_mode === 'true' ? (
+                      <Wrench size={38} color="#ef4444" />
+                    ) : (
+                      <CheckCircle2 size={38} color="#10b981" />
+                    )}
+                  </div>
+
+                  {/* Title */}
+                  <h3 style={{ margin: '0 0 8px 0', fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc', lineHeight: 1.3 }}>
+                    {settings.maintenance_mode === 'true'
+                      ? (settings.maintenance_title || 'Under Scheduled Maintenance')
+                      : 'Systems Operational'}
+                  </h3>
+
+                  {/* Reason Pill */}
+                  {settings.maintenance_mode === 'true' && (
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: '#f87171',
+                        background: 'rgba(239, 68, 68, 0.15)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        borderRadius: '20px',
+                        padding: '4px 12px',
+                        marginBottom: '14px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <AlertCircle size={13} />
+                      <span>{settings.maintenance_reason || 'System Upgrade & Security Improvements'}</span>
+                    </div>
+                  )}
+
+                  {/* Message */}
+                  <p style={{ margin: '0 0 20px 0', fontSize: '0.82rem', color: '#94a3b8', lineHeight: 1.5, maxWidth: '280px' }}>
+                    {settings.maintenance_mode === 'true'
+                      ? (settings.maintenance_message || 'We are currently upgrading server systems to deliver a smoother live streaming experience. Please check back shortly.')
+                      : 'All live streaming, gifting, agency management, and wallet services are running smoothly.'}
+                  </p>
+
+                  {/* ETA Box */}
+                  {settings.maintenance_mode === 'true' && (
+                    <div
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '12px',
+                        padding: '10px 16px',
+                        marginBottom: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '0.8rem',
+                        color: '#cbd5e1',
+                      }}
+                    >
+                      <Clock size={16} color="#fbbf24" />
+                      <span>Estimated Return: <strong style={{ color: '#fbbf24' }}>{settings.maintenance_eta || 'Soon'}</strong></span>
+                    </div>
+                  )}
+
+                  {/* Action Button */}
+                  <button
+                    type="button"
+                    style={{
+                      marginTop: 'auto',
+                      width: '100%',
+                      maxWidth: '240px',
+                      padding: '10px 0',
+                      borderRadius: '12px',
+                      background: settings.maintenance_mode === 'true' ? '#334155' : 'linear-gradient(135deg, #10b981, #059669)',
+                      color: '#fff',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <RefreshCw size={14} />
+                    <span>{settings.maintenance_mode === 'true' ? 'Refresh Status' : 'Enter Application'}</span>
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textAlign: 'center', padding: '6px' }}>
+                  Mobile apps poll <code>/api/mobile/maintenance</code> on startup and subscribe to Socket.IO event <code>system:maintenance_updated</code>.
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Link to System User Purge & Reset */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '1rem 1.25rem',
+                borderRadius: '12px',
+                background: 'rgba(239, 68, 68, 0.06)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                marginTop: '1.25rem',
+                flexWrap: 'wrap',
+                gap: '1rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Trash2 size={20} color="#ef4444" />
+                <div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f87171' }}>
+                    Need to Purge Test Users or Reset Registration IDs?
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                    Wipe all non-admin users and reset registration sequence back to ID #2.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                onClick={() => setActiveTab('danger')}
+                style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+              >
+                Open Clear Users & Reset →
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '1.25rem', marginTop: '1.25rem', borderTop: '1px solid var(--border-color)' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSaveSystem}
+                disabled={savingSystem || saving}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#7c3aed', borderColor: '#6d28d9', padding: '0.75rem 1.6rem', fontSize: '0.9rem', fontWeight: 700 }}
+              >
+                <Save size={18} />
+                <span>{savingSystem ? 'Saving Configuration...' : 'Save Maintenance & System Settings'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: DANGER ZONE & CLEAR ALL USERS */}
+      {activeTab === 'danger' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Main Danger Zone Panel */}
+          <div
+            className="panel-card"
+            style={{
+              border: '1px solid rgba(239, 68, 68, 0.45)',
+              background: 'var(--bg-card)',
+              boxShadow: '0 8px 30px rgba(239, 68, 68, 0.08)',
+            }}
+          >
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
+              <div className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ef4444',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                  }}
+                >
+                  <Trash2 size={20} />
+                </div>
+                <div>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f87171' }}>
+                    Danger Zone: System User Purge & Reset
+                  </span>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                    Permanently wipe non-admin user accounts and restart registration sequence numbers
+                  </div>
+                </div>
+              </div>
+
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  color: '#ef4444',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                High-Impact Operation
+              </span>
+            </div>
+
+            {/* 3 Pillars Overview Banner */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                gap: '1rem',
+                marginBottom: '1.75rem',
+              }}
+            >
+              {/* Pillar 1: Super Admin Protected */}
+              <div
+                style={{
+                  padding: '1.1rem',
+                  borderRadius: '12px',
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem', color: '#10b981', fontWeight: 700, fontSize: '0.9rem' }}>
+                  <Shield size={18} />
+                  <span>Super Admin Preserved</span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                  Super Admin <strong style={{ color: '#10b981' }}>ID #1 (admin@umi.live)</strong> is strictly guarded and never deleted. Your account, credentials, and settings remain 100% untouched.
+                </p>
+              </div>
+
+              {/* Pillar 2: Reserved Accounts Reclaimed */}
+              <div
+                style={{
+                  padding: '1.1rem',
+                  borderRadius: '12px',
+                  background: 'rgba(139, 92, 246, 0.08)',
+                  border: '1px solid rgba(139, 92, 246, 0.25)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem', color: '#8b5cf6', fontWeight: 700, fontSize: '0.9rem' }}>
+                  <Sparkles size={18} />
+                  <span>Reserved Pool Maintained</span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                  Reserved VIP account pool (e.g., IDs 2..100) will be detached and marked back to <strong style={{ color: '#8b5cf6' }}>Available</strong> so they can be assigned again.
+                </p>
+              </div>
+
+              {/* Pillar 3: What gets deleted */}
+              <div
+                style={{
+                  padding: '1.1rem',
+                  borderRadius: '12px',
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem', color: '#ef4444', fontWeight: 700, fontSize: '0.9rem' }}>
+                  <AlertTriangle size={18} />
+                  <span>All Users & Data Purged</span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                  All viewers, hosts, agencies, moderators, chat messages, live rooms, gift logs, level progress, and transactions will be <strong style={{ color: '#ef4444' }}>permanently deleted</strong>.
+                </p>
+              </div>
+            </div>
+
+            {/* Action Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setShowClearConfirmModal(true);
+              }}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.25rem',
+                background: 'var(--bg-secondary)',
+                padding: '1.5rem',
+                borderRadius: '14px',
+                border: '1px solid var(--border-color)',
+              }}
+            >
+              {/* Option: Restart ID */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+                  1. Next User Registration Starts From ID:
+                </label>
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setClearRestartId('2')}
+                    className="btn btn-sm"
+                    style={{
+                      background: clearRestartId === '2' ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-card)',
+                      borderColor: clearRestartId === '2' ? '#3b82f6' : 'var(--border-color)',
+                      color: clearRestartId === '2' ? '#60a5fa' : 'var(--text-main)',
+                      fontWeight: clearRestartId === '2' ? 700 : 500,
+                    }}
+                  >
+                    Start from ID #2 (Fresh User Starting ID)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setClearRestartId('101')}
+                    className="btn btn-sm"
+                    style={{
+                      background: clearRestartId === '101' ? 'rgba(139, 92, 246, 0.2)' : 'var(--bg-card)',
+                      borderColor: clearRestartId === '101' ? '#8b5cf6' : 'var(--border-color)',
+                      color: clearRestartId === '101' ? '#a78bfa' : 'var(--text-main)',
+                      fontWeight: clearRestartId === '101' ? 700 : 500,
+                    }}
+                  >
+                    Start from ID #101 (Preserve #2..#100 for VIPs)
+                  </button>
+                </div>
+                <div style={{ maxWidth: '320px' }}>
+                  <input
+                    type="number"
+                    min="2"
+                    max="1000000"
+                    required
+                    value={clearRestartId}
+                    onChange={(e) => setClearRestartId(e.target.value)}
+                    className="input-field"
+                    style={{ fontFamily: 'monospace', fontWeight: 700 }}
+                    placeholder="2"
+                  />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px', display: 'block' }}>
+                    MySQL <code>AUTO_INCREMENT</code> will be set to this number. The next person who signs up will get ID #{clearRestartId || '2'}.
+                  </span>
+                </div>
+              </div>
+
+              {/* Security Password */}
+              <div style={{ maxWidth: '420px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
+                  2. Super Admin Security Action Password <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showClearActionPassword ? 'text' : 'password'}
+                    required
+                    value={clearActionPassword}
+                    onChange={(e) => setClearActionPassword(e.target.value)}
+                    className="input-field"
+                    placeholder="Enter action security password (default: admin123)"
+                    style={{ paddingRight: '2.5rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowClearActionPassword(!showClearActionPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-dim)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                  >
+                    {showClearActionPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px', display: 'block' }}>
+                  Configured under Financial Security (default: <code>admin123</code>).
+                </span>
+              </div>
+
+              {/* Confirmation Text Check */}
+              <div style={{ maxWidth: '420px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
+                  3. Type <span style={{ color: '#ef4444', fontFamily: 'monospace' }}>RESET</span> to Unlock: <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={clearConfirmWord}
+                  onChange={(e) => setClearConfirmWord(e.target.value)}
+                  className="input-field"
+                  placeholder="Type RESET here"
+                  style={{ textTransform: 'uppercase', fontFamily: 'monospace', fontWeight: 700 }}
+                />
+              </div>
+
+              {/* Execute Button */}
+              <div style={{ display: 'flex', justifyContent: 'flex-start', paddingTop: '0.5rem' }}>
+                <button
+                  type="submit"
+                  className="btn btn-danger"
+                  disabled={
+                    clearingAllUsers ||
+                    !clearActionPassword.trim() ||
+                    clearConfirmWord.trim().toUpperCase() !== 'RESET'
+                  }
+                  style={{
+                    background: '#ef4444',
+                    borderColor: '#dc2626',
+                    color: '#ffffff',
+                    padding: '0.75rem 1.75rem',
+                    fontSize: '0.92rem',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: (clearingAllUsers || !clearActionPassword.trim() || clearConfirmWord.trim().toUpperCase() !== 'RESET') ? 'not-allowed' : 'pointer',
+                    opacity: (clearingAllUsers || !clearActionPassword.trim() || clearConfirmWord.trim().toUpperCase() !== 'RESET') ? 0.6 : 1,
+                  }}
+                >
+                  <Trash2 size={16} />
+                  <span>Wipe All Users & Reset System</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 1-to-1 P2P Video & Audio Calling & Direct Message Rates Tab */}
+      {activeTab === 'calls' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Main Pricing & Configuration Card */}
+          <div className="panel-card" style={{ border: '1px solid rgba(16, 185, 129, 0.35)' }}>
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="panel-title">
+                <PhoneCall size={22} color="#10b981" />
+                <span>1-to-1 P2P Video & Audio Call Rates & Settings</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className={`badge ${settings.call_is_enabled === 'false' ? 'badge-danger' : 'badge-success'}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+                  {settings.call_is_enabled === 'false' ? 'Calling Disabled' : 'Calling Active'}
+                </span>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-dim)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+              Configure per-minute coin costs for 1-to-1 direct message Audio Calls, Video Calls, and Video Live interactions.
+              When a user calls another user in Direct Message, their coin balance is charged per minute and the receiver earns diamonds based on the revenue share percentage.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Master Feature Enable Switch */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '1rem',
+                  borderRadius: '12px',
+                  background: 'rgba(16, 185, 129, 0.05)',
+                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.94rem', color: '#059669', marginBottom: '2px' }}>
+                    1-to-1 Calling Service Master Switch
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>
+                    Allow users to initiate Audio & Video calls inside Direct Message chats
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleChange('call_is_enabled', settings.call_is_enabled === 'false' ? 'true' : 'false')}
+                    style={{
+                      padding: '0.45rem 1rem',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: 'none',
+                      background: settings.call_is_enabled === 'false' ? '#ef4444' : '#10b981',
+                      color: '#fff',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    {settings.call_is_enabled === 'false' ? 'Turn On Calling' : 'Calling Enabled (Active)'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Rate Inputs Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                {/* Audio Call Rate */}
+                <div style={{ background: 'var(--bg-surface-secondary, rgba(255,255,255,0.02))', padding: '1.1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.4rem' }}>
+                    <Mic size={18} color="#3b82f6" />
+                    <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                      Audio Call Rate (Coins / Minute)
+                    </label>
+                  </div>
+                  <p style={{ fontSize: '0.76rem', color: 'var(--text-dim)', marginBottom: '0.65rem' }}>
+                    Coins deducted per minute from caller for 1-to-1 Audio calls in Direct Message
+                  </p>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="number"
+                      min="1"
+                      className="input-field"
+                      style={{ paddingRight: '55px', fontWeight: 700, fontSize: '1rem', color: '#3b82f6' }}
+                      value={settings.call_audio_rate_per_minute || '20'}
+                      onChange={(e) => handleChange('call_audio_rate_per_minute', e.target.value)}
+                    />
+                    <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', color: 'var(--text-dim)', fontWeight: 600 }}>
+                      coins/min
+                    </span>
+                  </div>
+                </div>
+
+                {/* Video Call Rate */}
+                <div style={{ background: 'var(--bg-surface-secondary, rgba(255,255,255,0.02))', padding: '1.1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.4rem' }}>
+                    <Video size={18} color="#10b981" />
+                    <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                      Video Call Rate (Coins / Minute)
+                    </label>
+                  </div>
+                  <p style={{ fontSize: '0.76rem', color: 'var(--text-dim)', marginBottom: '0.65rem' }}>
+                    Coins deducted per minute from caller for 1-to-1 Video calls in Direct Message
+                  </p>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="number"
+                      min="1"
+                      className="input-field"
+                      style={{ paddingRight: '55px', fontWeight: 700, fontSize: '1rem', color: '#10b981' }}
+                      value={settings.call_video_rate_per_minute || '50'}
+                      onChange={(e) => handleChange('call_video_rate_per_minute', e.target.value)}
+                    />
+                    <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', color: 'var(--text-dim)', fontWeight: 600 }}>
+                      coins/min
+                    </span>
+                  </div>
+                </div>
+
+                {/* Video Live Rate */}
+                <div style={{ background: 'var(--bg-surface-secondary, rgba(255,255,255,0.02))', padding: '1.1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.4rem' }}>
+                    <Activity size={18} color="#f59e0b" />
+                    <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                      Video Live Rate (Live Interaction Coins / Min)
+                    </label>
+                  </div>
+                  <p style={{ fontSize: '0.76rem', color: 'var(--text-dim)', marginBottom: '0.65rem' }}>
+                    Coins deducted per minute for Video Live seat interaction or private session
+                  </p>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="number"
+                      min="1"
+                      className="input-field"
+                      style={{ paddingRight: '55px', fontWeight: 700, fontSize: '1rem', color: '#f59e0b' }}
+                      value={settings.call_video_live_rate_per_minute || '30'}
+                      onChange={(e) => handleChange('call_video_live_rate_per_minute', e.target.value)}
+                    />
+                    <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', color: 'var(--text-dim)', fontWeight: 600 }}>
+                      coins/min
+                    </span>
+                  </div>
+                </div>
+
+                {/* Receiver Revenue Share % */}
+                <div style={{ background: 'var(--bg-surface-secondary, rgba(255,255,255,0.02))', padding: '1.1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.4rem' }}>
+                    <Percent size={18} color="#8b5cf6" />
+                    <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                      Receiver Earnings Share (%)
+                    </label>
+                  </div>
+                  <p style={{ fontSize: '0.76rem', color: 'var(--text-dim)', marginBottom: '0.65rem' }}>
+                    Percentage of caller's coins awarded to the receiver as diamonds
+                  </p>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      className="input-field"
+                      style={{ paddingRight: '35px', fontWeight: 700, fontSize: '1rem', color: '#8b5cf6' }}
+                      value={settings.call_receiver_earnings_percent || '70'}
+                      onChange={(e) => handleChange('call_receiver_earnings_percent', e.target.value)}
+                    />
+                    <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: 600 }}>
+                      %
+                    </span>
+                  </div>
+                </div>
+
+                {/* Min Balance to Initiate */}
+                <div style={{ background: 'var(--bg-surface-secondary, rgba(255,255,255,0.02))', padding: '1.1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.4rem' }}>
+                    <Coins size={18} color="#eab308" />
+                    <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                      Minimum Balance to Start Call (Coins)
+                    </label>
+                  </div>
+                  <p style={{ fontSize: '0.76rem', color: 'var(--text-dim)', marginBottom: '0.65rem' }}>
+                    Minimum coin balance required in caller wallet to place an outgoing call
+                  </p>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="number"
+                      min="1"
+                      className="input-field"
+                      style={{ paddingRight: '55px', fontWeight: 700, fontSize: '1rem' }}
+                      value={settings.call_min_balance_to_start || '20'}
+                      onChange={(e) => handleChange('call_min_balance_to_start', e.target.value)}
+                    />
+                    <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', color: 'var(--text-dim)', fontWeight: 600 }}>
+                      coins
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSaveCalls}
+                  disabled={savingCalls || saving}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#10b981', borderColor: '#059669' }}
+                >
+                  <Save size={16} />
+                  <span>{savingCalls ? 'Saving...' : 'Save 1-to-1 Call Rates'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Call Simulator Card */}
+          <div className="panel-card" style={{ border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="panel-title">
+                <Calculator size={22} color="#8b5cf6" />
+                <span>Interactive Call Cost & Earnings Simulator</span>
+              </div>
+              <span className="badge badge-purple" style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+                Real-Time Preview
+              </span>
+            </div>
+
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-dim)', marginBottom: '1.25rem' }}>
+              Test how much a user will pay and how much the receiver and platform will earn for a specific call duration.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '0.35rem' }}>
+                  Call Type
+                </label>
+                <select
+                  className="input-field"
+                  value={simCallType}
+                  onChange={(e) => setSimCallType(e.target.value)}
+                >
+                  <option value="audio">🎙️ 1-to-1 Audio Call</option>
+                  <option value="video">📹 1-to-1 Video Call</option>
+                  <option value="live">🎥 Video Live Stream Call</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '0.35rem' }}>
+                  Call Duration (Minutes)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="120"
+                  className="input-field"
+                  value={simCallMinutes}
+                  onChange={(e) => setSimCallMinutes(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                />
+              </div>
+            </div>
+
+            {(() => {
+              const audioRate = parseInt(settings.call_audio_rate_per_minute || '20', 10);
+              const videoRate = parseInt(settings.call_video_rate_per_minute || '50', 10);
+              const liveRate = parseInt(settings.call_video_live_rate_per_minute || '30', 10);
+              const rate = simCallType === 'video' ? videoRate : (simCallType === 'live' ? liveRate : audioRate);
+              const totalCoins = rate * simCallMinutes;
+              const sharePct = parseInt(settings.call_receiver_earnings_percent || '70', 10);
+              const receiverDiamonds = Math.floor((totalCoins * sharePct) / 100);
+              const platformCoins = totalCoins - receiverDiamonds;
+
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', padding: '1.25rem', background: 'rgba(139, 92, 246, 0.05)', borderRadius: '12px', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 600, textTransform: 'uppercase' }}>Caller Pays</span>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#f59e0b', marginTop: '4px' }}>
+                      {totalCoins} <span style={{ fontSize: '0.85rem' }}>Coins</span>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>{rate} coins × {simCallMinutes} min</span>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 600, textTransform: 'uppercase' }}>Receiver Earns</span>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981', marginTop: '4px' }}>
+                      {receiverDiamonds} <span style={{ fontSize: '0.85rem' }}>Diamonds</span>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>{sharePct}% revenue share</span>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 600, textTransform: 'uppercase' }}>Platform Margin</span>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#8b5cf6', marginTop: '4px' }}>
+                      {platformCoins} <span style={{ fontSize: '0.85rem' }}>Coins</span>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>{100 - sharePct}% retained</span>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Recent Call Sessions Table */}
+          <div className="panel-card">
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="panel-title">
+                <Clock size={20} color="#3b82f6" />
+                <span>Recent 1-to-1 P2P Call Sessions</span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={fetchCallLogs}
+                disabled={loadingCallLogs}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <RefreshCw size={14} className={loadingCallLogs ? 'spin' : ''} />
+                <span>Refresh Logs</span>
+              </button>
+            </div>
+
+            {loadingCallLogs ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-dim)' }}>Loading call logs...</div>
+            ) : callLogs.length === 0 ? (
+              <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-dim)' }}>
+                <PhoneCall size={36} color="var(--text-dim)" style={{ margin: '0 auto 0.75rem', opacity: 0.5 }} />
+                <p style={{ margin: 0 }}>No 1-to-1 call sessions recorded yet.</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="table" style={{ width: '100%', fontSize: '0.82rem' }}>
+                  <thead>
+                    <tr>
+                      <th>Call ID</th>
+                      <th>Caller</th>
+                      <th>Receiver</th>
+                      <th>Type</th>
+                      <th>Status</th>
+                      <th>Duration</th>
+                      <th>Coins Spent</th>
+                      <th>Diamonds Earned</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {callLogs.map((c) => {
+                      const durFormatted = `${Math.floor((c.duration_seconds || 0) / 60).toString().padStart(2, '0')}:${((c.duration_seconds || 0) % 60).toString().padStart(2, '0')}`;
+                      return (
+                        <tr key={c.id}>
+                          <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{c.call_id?.slice(0, 16)}</td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {c.caller_avatar ? (
+                                <img src={c.caller_avatar} alt="" style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#3b82f6', color: '#fff', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  {c.caller_name?.[0] || 'C'}
+                                </div>
+                              )}
+                              <span>{c.caller_name || `User #${c.caller_id}`}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {c.receiver_avatar ? (
+                                <img src={c.receiver_avatar} alt="" style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#10b981', color: '#fff', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  {c.receiver_name?.[0] || 'R'}
+                                </div>
+                              )}
+                              <span>{c.receiver_name || `User #${c.receiver_id}`}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`badge ${c.call_type === 'video' ? 'badge-success' : 'badge-primary'}`} style={{ fontSize: '0.72rem', padding: '3px 8px' }}>
+                              {c.call_type === 'video' ? '📹 Video' : '🎙️ Audio'}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className={`badge ${
+                                c.status === 'accepted' || c.status === 'ended'
+                                  ? 'badge-success'
+                                  : c.status === 'ringing'
+                                  ? 'badge-warning'
+                                  : 'badge-danger'
+                              }`}
+                              style={{ fontSize: '0.72rem', padding: '3px 8px' }}
+                            >
+                              {c.status}
+                            </span>
+                          </td>
+                          <td style={{ fontWeight: 600 }}>{durFormatted}</td>
+                          <td style={{ fontWeight: 700, color: '#f59e0b' }}>{c.total_coins_spent || 0}c</td>
+                          <td style={{ fontWeight: 700, color: '#10b981' }}>{c.receiver_earned_diamonds || 0}💎</td>
+                          <td style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>
+                            {c.created_at ? new Date(c.created_at).toLocaleString() : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT 6: SCREEN GUARD & PRIVACY CONTROLS */}
+      {activeTab === 'screen_guard' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Main Privacy Panel */}
+          <div className="panel-card" style={{ border: '1px solid rgba(124, 58, 237, 0.35)' }}>
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="panel-title">
+                <Camera size={22} color="#7c3aed" />
+                <span>Screen Guard, Anti-Recording & Live Privacy Master Controls</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    padding: '4px 10px',
+                    borderRadius: '20px',
+                    background: settings.app_screen_guard_enabled !== 'false' ? 'rgba(124, 58, 237, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                    color: settings.app_screen_guard_enabled !== 'false' ? '#a78bfa' : '#ef4444',
+                    border: settings.app_screen_guard_enabled !== 'false' ? '1px solid rgba(124, 58, 237, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                  }}
+                >
+                  {settings.app_screen_guard_enabled !== 'false' ? '🛡️ Guard Active' : '⚠️ Guard Off'}
+                </span>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSaveScreenGuard}
+                  disabled={savingScreenGuard}
+                  style={{ background: '#7c3aed', borderColor: '#7c3aed', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Save size={15} />
+                  <span>{savingScreenGuard ? 'Saving...' : 'Save Settings'}</span>
+                </button>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-dim)', marginBottom: '1.5rem' }}>
+              Enforce enterprise-grade content protection against unauthorized screenshots, external screen grabbers, and device screen recorders. Real-time updates push automatically to connected Flutter mobile clients via WebSocket.
+            </p>
+
+            {/* Grid of Master Controls */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+              {/* App-wide Screen Guard */}
+              <div style={{ padding: '1.15rem', borderRadius: '12px', background: 'var(--bg-primary)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ padding: '8px', borderRadius: '8px', background: 'rgba(124, 58, 237, 0.15)', color: '#a78bfa' }}>
+                      <Lock size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                        App-Wide Screen Guard
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                        Android FLAG_SECURE & iOS Window Security
+                      </div>
+                    </div>
+                  </div>
+                  <select
+                    className="select-field"
+                    style={{ width: '130px', fontWeight: 600 }}
+                    value={settings.app_screen_guard_enabled !== 'false' ? 'true' : 'false'}
+                    onChange={(e) => handleChange('app_screen_guard_enabled', e.target.value)}
+                  >
+                    <option value="true">Active (Block)</option>
+                    <option value="false">Disabled (Allow)</option>
+                  </select>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
+                  When enabled, screenshots and screen recording are completely blocked throughout the entire mobile application.
+                </div>
+              </div>
+
+              {/* Live Room Screen Guard */}
+              <div style={{ padding: '1.15rem', borderRadius: '12px', background: 'var(--bg-primary)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ padding: '8px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.15)', color: '#f87171' }}>
+                      <CameraOff size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                        Live Room Privacy Guard
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                        Video & Audio Streaming Sessions
+                      </div>
+                    </div>
+                  </div>
+                  <select
+                    className="select-field"
+                    style={{ width: '130px', fontWeight: 600 }}
+                    value={settings.live_screen_guard_enabled !== 'false' ? 'true' : 'false'}
+                    onChange={(e) => handleChange('live_screen_guard_enabled', e.target.value)}
+                  >
+                    <option value="true">Active (Block)</option>
+                    <option value="false">Disabled (Allow)</option>
+                  </select>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
+                  Blocks screenshots and external recordings inside video and audio rooms to protect stream broadcasters.
+                </div>
+              </div>
+
+              {/* Live Room Screen Recording */}
+              <div style={{ padding: '1.15rem', borderRadius: '12px', background: 'var(--bg-primary)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ padding: '8px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa' }}>
+                      <Video size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                        Live Screen Recording
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                        Built-in Room Recording Feature
+                      </div>
+                    </div>
+                  </div>
+                  <select
+                    className="select-field"
+                    style={{ width: '130px', fontWeight: 600 }}
+                    value={settings.live_screen_record_enabled === 'true' ? 'true' : 'false'}
+                    onChange={(e) => handleChange('live_screen_record_enabled', e.target.value)}
+                  >
+                    <option value="false">Disallowed</option>
+                    <option value="true">Allowed</option>
+                  </select>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
+                  Toggle whether users or hosts can trigger the in-app screen recording recorder during live broadcasts.
+                </div>
+              </div>
+
+              {/* Live Room Screen Share */}
+              <div style={{ padding: '1.15rem', borderRadius: '12px', background: 'var(--bg-primary)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ padding: '8px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
+                      <Cast size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                        Live Screen Share
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                        WebRTC Screen Cast Feature
+                      </div>
+                    </div>
+                  </div>
+                  <select
+                    className="select-field"
+                    style={{ width: '130px', fontWeight: 600 }}
+                    value={settings.live_screen_share_enabled !== 'false' ? 'true' : 'false'}
+                    onChange={(e) => handleChange('live_screen_share_enabled', e.target.value)}
+                  >
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
+                  Enable or disable the ability for participants to broadcast their device screen during live streaming sessions.
+                </div>
+              </div>
+
+              {/* Screen Share Permitted Roles */}
+              <div style={{ padding: '1.15rem', borderRadius: '12px', background: 'var(--bg-primary)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ padding: '8px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24' }}>
+                      <Users size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                        Screen Share Roles
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                        Who Can Broadcast Screen
+                      </div>
+                    </div>
+                  </div>
+                  <select
+                    className="select-field"
+                    style={{ minWidth: '150px', fontWeight: 600 }}
+                    value={settings.live_screen_share_roles || 'host_only'}
+                    onChange={(e) => handleChange('live_screen_share_roles', e.target.value)}
+                  >
+                    <option value="host_only">Host Only</option>
+                    <option value="host_and_moderator">Host & Moderators</option>
+                    <option value="all">All Seated Participants</option>
+                  </select>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
+                  Restricts screen broadcasting to authorized room roles to prevent misuse.
+                </div>
+              </div>
+
+              {/* Dynamic Watermark */}
+              <div style={{ padding: '1.15rem', borderRadius: '12px', background: 'var(--bg-primary)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ padding: '8px', borderRadius: '8px', background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc' }}>
+                      <Fingerprint size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                        Anti-Leak Watermark
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                        User ID & Timestamp Overlay
+                      </div>
+                    </div>
+                  </div>
+                  <select
+                    className="select-field"
+                    style={{ width: '130px', fontWeight: 600 }}
+                    value={settings.screen_guard_watermark_enabled !== 'false' ? 'true' : 'false'}
+                    onChange={(e) => handleChange('screen_guard_watermark_enabled', e.target.value)}
+                  >
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
+                  Overlays a subtle dynamic watermark showing the viewer's User ID to trace any unauthorized external recording.
+                </div>
+              </div>
+
+              {/* Creator Screen Recording Permission */}
+              <div style={{ padding: '1.15rem', borderRadius: '12px', background: 'var(--bg-primary)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ padding: '8px', borderRadius: '8px', background: 'rgba(236, 72, 153, 0.15)', color: '#f472b6' }}>
+                      <Video size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                        Creator Screen Record
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                        Host / Streamer Recording Rights
+                      </div>
+                    </div>
+                  </div>
+                  <select
+                    className="select-field"
+                    style={{ width: '130px', fontWeight: 600 }}
+                    value={settings.screen_guard_allow_creator_record !== 'false' ? 'true' : 'false'}
+                    onChange={(e) => handleChange('screen_guard_allow_creator_record', e.target.value)}
+                  >
+                    <option value="true">Allowed (On)</option>
+                    <option value="false">Blocked (Off)</option>
+                  </select>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
+                  Allows the user who created the live room to record their own session, regardless of their account role.
+                </div>
+              </div>
+
+              {/* Creator Screen Share Permission */}
+              <div style={{ padding: '1.15rem', borderRadius: '12px', background: 'var(--bg-primary)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ padding: '8px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa' }}>
+                      <Cast size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                        Creator Screen Share
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                        Host / Streamer Screen Cast
+                      </div>
+                    </div>
+                  </div>
+                  <select
+                    className="select-field"
+                    style={{ width: '130px', fontWeight: 600 }}
+                    value={settings.screen_guard_allow_creator_share !== 'false' ? 'true' : 'false'}
+                    onChange={(e) => handleChange('screen_guard_allow_creator_share', e.target.value)}
+                  >
+                    <option value="true">Allowed (On)</option>
+                    <option value="false">Blocked (Off)</option>
+                  </select>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
+                  Allows the room creator to share their device screen during the live stream, regardless of their user role.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Role-Based Permissions Panel */}
+          <div className="panel-card" style={{ border: '1px solid rgba(16, 185, 129, 0.35)' }}>
+            <div className="panel-header">
+              <div className="panel-title">
+                <UserCheck size={22} color="#10b981" />
+                <span>Screen Guard Bypass & Role Visibility Permissions</span>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-dim)', marginBottom: '1.5rem' }}>
+              Configure which user groups are granted permission to view screen broadcasts when screen guard is toggled off or when role-based exceptions apply:
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+              {/* Room Creator (Role-Agnostic) */}
+              <div style={{ padding: '1rem', borderRadius: '10px', background: 'var(--bg-primary)', border: '1px solid rgba(236, 72, 153, 0.3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#f472b6' }}>🎬 Room Creator (Any Role)</div>
+                  <select
+                    className="select-field"
+                    style={{ width: '120px' }}
+                    value={settings.screen_guard_creator_bypass !== 'false' ? 'true' : 'false'}
+                    onChange={(e) => handleChange('screen_guard_creator_bypass', e.target.value)}
+                  >
+                    <option value="true">Allowed (Bypass)</option>
+                    <option value="false">Blocked (Guarded)</option>
+                  </select>
+                </div>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                  Bypasses screen guard so the user who created the live room can record & screenshot their stream.
+                </span>
+              </div>
+
+              {/* Host */}
+              <div style={{ padding: '1rem', borderRadius: '10px', background: 'var(--bg-primary)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-main)' }}>👑 Host</div>
+                  <select
+                    className="select-field"
+                    style={{ width: '110px' }}
+                    value={settings.screen_guard_allow_host !== 'false' ? 'true' : 'false'}
+                    onChange={(e) => handleChange('screen_guard_allow_host', e.target.value)}
+                  >
+                    <option value="true">Allowed</option>
+                    <option value="false">Blocked</option>
+                  </select>
+                </div>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                  Room owner / host view privileges.
+                </span>
+              </div>
+
+              {/* Moderator */}
+              <div style={{ padding: '1rem', borderRadius: '10px', background: 'var(--bg-primary)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-main)' }}>🛡️ Moderator</div>
+                  <select
+                    className="select-field"
+                    style={{ width: '110px' }}
+                    value={settings.screen_guard_allow_moderator !== 'false' ? 'true' : 'false'}
+                    onChange={(e) => handleChange('screen_guard_allow_moderator', e.target.value)}
+                  >
+                    <option value="true">Allowed</option>
+                    <option value="false">Blocked</option>
+                  </select>
+                </div>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                  Appointed room moderators and supervisors.
+                </span>
+              </div>
+
+              {/* Agency */}
+              <div style={{ padding: '1rem', borderRadius: '10px', background: 'var(--bg-primary)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-main)' }}>🏢 Agency</div>
+                  <select
+                    className="select-field"
+                    style={{ width: '110px' }}
+                    value={settings.screen_guard_allow_agency !== 'false' ? 'true' : 'false'}
+                    onChange={(e) => handleChange('screen_guard_allow_agency', e.target.value)}
+                  >
+                    <option value="true">Allowed</option>
+                    <option value="false">Blocked</option>
+                  </select>
+                </div>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                  Agency managers overseeing their hosts.
+                </span>
+              </div>
+
+              {/* General Users */}
+              <div style={{ padding: '1rem', borderRadius: '10px', background: 'var(--bg-primary)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-main)' }}>👥 General Users</div>
+                  <select
+                    className="select-field"
+                    style={{ width: '110px' }}
+                    value={settings.screen_guard_allow_general_users !== 'false' ? 'true' : 'false'}
+                    onChange={(e) => handleChange('screen_guard_allow_general_users', e.target.value)}
+                  >
+                    <option value="true">Allowed</option>
+                    <option value="false">Blocked</option>
+                  </select>
+                </div>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                  Regular audience members in room.
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: STAR PROGRESSION SYSTEM */}
+      {activeTab === 'stars' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Main Card */}
+          <div className="panel-card" style={{ border: '1px solid rgba(245, 158, 11, 0.35)', background: 'linear-gradient(180deg, rgba(245, 158, 11, 0.04) 0%, rgba(20, 15, 10, 0.35) 100%)' }}>
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+              <div className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Star size={20} color="#f59e0b" />
+                </div>
+                <div>
+                  <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>Star Progression Engine & Formula</span>
+                  <span style={{ display: 'block', fontSize: '0.74rem', color: 'var(--text-dim)', fontWeight: 400 }}>
+                    100,000 = 1.0⭐ | 120,000 = 1.2⭐ | 200,000 = 2.0⭐ dynamic decimal progression
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleRecalculateAllStars}
+                  disabled={recalculatingStars}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', borderColor: 'rgba(245, 158, 11, 0.3)', color: '#fbbf24' }}
+                >
+                  <RefreshCw size={14} className={recalculatingStars ? 'spin' : ''} />
+                  <span>{recalculatingStars ? 'Recalculating...' : 'Recalculate All Users Stars'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSaveStars}
+                  disabled={savingStars}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f59e0b', borderColor: '#d97706', color: '#000000', fontWeight: 700 }}
+                >
+                  <Save size={15} />
+                  <span>{savingStars ? 'Saving Formula...' : 'Save Configuration'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Stats Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{ padding: '0.9rem', borderRadius: '10px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Active Formula</span>
+                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f59e0b', marginTop: '4px' }}>
+                  1⭐ = {Number(starConfig?.coins_per_unit || 100000).toLocaleString()} pts
+                </div>
+              </div>
+
+              <div style={{ padding: '0.9rem', borderRadius: '10px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Starred Users (≥1⭐)</span>
+                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#10b981', marginTop: '4px' }}>
+                  {Number(starStats?.total_starred_users || 0).toLocaleString()} users
+                </div>
+              </div>
+
+              <div style={{ padding: '0.9rem', borderRadius: '10px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Highest Star Rating</span>
+                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ec4899', marginTop: '4px' }}>
+                  ⭐ {Number(starStats?.highest_star || 0).toFixed(Number(starConfig?.decimal_precision ?? 1))}
+                </div>
+              </div>
+
+              <div style={{ padding: '0.9rem', borderRadius: '10px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Engine Status</span>
+                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: starConfig?.is_enabled ? '#10b981' : '#ef4444', marginTop: '4px' }}>
+                  {starConfig?.is_enabled ? 'Active Online' : 'Disabled'}
+                </div>
+              </div>
+            </div>
+
+            {/* Formula Controls */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
+              {/* Card 1: Base Coins Per Star */}
+              <div style={{ padding: '1.25rem', borderRadius: '12px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    Coins / Points Required Per 1 Full Star (Base)
+                  </label>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: '0.75rem' }}>
+                    Formula: <code style={{ color: '#f59e0b' }}>Stars = User Points ÷ Base</code>. If Base is 100,000, then 120,000 points equals 1.2 stars!
+                  </span>
+
+                  <div style={{ position: 'relative', maxWidth: '240px', marginBottom: '0.75rem' }}>
+                    <input
+                      type="number"
+                      min="1"
+                      className="input-field"
+                      style={{ paddingLeft: '2.4rem', fontWeight: 800, fontSize: '1.05rem', color: '#f59e0b' }}
+                      value={starConfig?.coins_per_unit || 100000}
+                      onChange={(e) => setStarConfig((prev) => ({ ...prev, coins_per_unit: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+                    />
+                    <Coins size={16} color="#f59e0b" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                  </div>
+
+                  {/* Preset Pills */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {[50000, 100000, 200000, 500000, 1000000].map((unit) => (
+                      <button
+                        key={unit}
+                        type="button"
+                        onClick={() => setStarConfig((prev) => ({ ...prev, coins_per_unit: unit }))}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '14px',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          background: (starConfig?.coins_per_unit || 100000) === unit ? '#f59e0b' : 'rgba(255, 255, 255, 0.05)',
+                          color: (starConfig?.coins_per_unit || 100000) === unit ? '#000000' : 'var(--text-main)',
+                          border: (starConfig?.coins_per_unit || 100000) === unit ? '1px solid #f59e0b' : '1px solid var(--border-color)',
+                        }}
+                      >
+                        {unit >= 100000 ? `${unit / 100000} Lakh` : `${unit / 1000}k`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Metric Type & Precision */}
+              <div style={{ padding: '1.25rem', borderRadius: '12px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    Progression Metric Source
+                  </label>
+                  <select
+                    className="select-field"
+                    value={starConfig?.metric_type || 'coins_spent'}
+                    onChange={(e) => setStarConfig((prev) => ({ ...prev, metric_type: e.target.value }))}
+                  >
+                    <option value="coins_spent">🪙 Total Coins Spent (Gifter & Activity - Recommended)</option>
+                    <option value="diamonds">💎 Diamonds Earned (Host Revenue & Earnings)</option>
+                    <option value="wallet_coins">💰 Current Wallet Coin Balance</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                      Decimal Precision
+                    </label>
+                    <select
+                      className="select-field"
+                      value={starConfig?.decimal_precision ?? 1}
+                      onChange={(e) => setStarConfig((prev) => ({ ...prev, decimal_precision: parseInt(e.target.value, 10) }))}
+                    >
+                      <option value="1">1 Decimal (e.g. 1.2⭐)</option>
+                      <option value="2">2 Decimals (e.g. 1.25⭐)</option>
+                      <option value="0">0 Decimals (e.g. 1⭐)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                      Max Star Cap
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="input-field"
+                      value={starConfig?.max_stars || 100}
+                      onChange={(e) => setStarConfig((prev) => ({ ...prev, max_stars: parseFloat(e.target.value) || 100 }))}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-main)' }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(starConfig?.is_enabled)}
+                      onChange={(e) => setStarConfig((prev) => ({ ...prev, is_enabled: e.target.checked }))}
+                    />
+                    <span style={{ fontWeight: 600 }}>Enable Star Progression Rating Engine</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive Live Simulator */}
+            <div
+              style={{
+                borderRadius: '14px',
+                padding: '1.25rem',
+                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(20, 15, 10, 0.4) 100%)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Calculator size={18} color="#f59e0b" />
+                    <span style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                      Interactive Live Star Simulator & Calculator
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '2px', display: 'block' }}>
+                    Test any coin spending amount to see the exact resulting star rating calculated by the active formula.
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 18px',
+                    borderRadius: '30px',
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    border: '1px solid #f59e0b',
+                    boxShadow: '0 0 15px rgba(245, 158, 11, 0.25)',
+                  }}
+                >
+                  <Star size={24} color="#f59e0b" fill="#f59e0b" />
+                  <span style={{ fontSize: '1.6rem', fontWeight: 900, color: '#fbbf24', letterSpacing: '-0.02em' }}>
+                    {((Math.min(Number(simStarCoins || 0), (Number(starConfig?.max_stars || 100)) * (Number(starConfig?.coins_per_unit || 100000)))) / (Number(starConfig?.coins_per_unit || 100000))).toFixed(Number(starConfig?.decimal_precision ?? 1))} Stars
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', width: '220px' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    className="input-field"
+                    style={{ paddingLeft: '2.4rem', fontWeight: 800 }}
+                    value={simStarCoins}
+                    onChange={(e) => setSimStarCoins(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  />
+                  <Coins size={16} color="#f59e0b" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                </div>
+
+                {/* Quick Simulation Buttons */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {[
+                    { label: '50k', val: 50000 },
+                    { label: '1 Lakh', val: 100000 },
+                    { label: '1.2 Lakh', val: 120000 },
+                    { label: '2 Lakh', val: 200000 },
+                    { label: '3.5 Lakh', val: 350000 },
+                    { label: '5 Lakh', val: 500000 },
+                    { label: '10 Lakh', val: 1000000 },
+                  ].map((btn) => (
+                    <button
+                      key={btn.val}
+                      type="button"
+                      onClick={() => setSimStarCoins(btn.val)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '14px',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        background: simStarCoins === btn.val ? '#f59e0b' : 'rgba(255, 255, 255, 0.05)',
+                        color: simStarCoins === btn.val ? '#000000' : 'var(--text-main)',
+                        border: simStarCoins === btn.val ? '1px solid #f59e0b' : '1px solid var(--border-color)',
+                      }}
+                    >
+                      {btn.label} (⭐{((btn.val) / (Number(starConfig?.coins_per_unit || 100000))).toFixed(Number(starConfig?.decimal_precision ?? 1))})
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Top Star Users Table */}
+            {topStarUsers && topStarUsers.length > 0 && (
+              <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
+                <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Crown size={16} color="#f59e0b" />
+                  <span>Top Starred Users Leaderboard</span>
+                </h4>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table" style={{ width: '100%', fontSize: '0.84rem' }}>
+                    <thead>
+                      <tr>
+                        <th>User</th>
+                        <th>Role</th>
+                        <th>Level</th>
+                        <th>Total Coins Spent</th>
+                        <th>Current Stars</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {topStarUsers.map((u) => (
+                        <tr key={u.id}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <img
+                                src={u.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&q=80'}
+                                alt=""
+                                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
+                              />
+                              <div>
+                                <strong style={{ color: 'var(--text-main)', display: 'block' }}>{u.full_name || 'Anonymous User'}</strong>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>ID: #{u.id}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '0.72rem', textTransform: 'capitalize', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)' }}>
+                              {u.role}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: 700, color: '#f59e0b' }}>Lv.{u.level || 1}</span>
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: 700 }}>{Number(u.total_coins_spent || 0).toLocaleString()} 🪙</span>
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '3px 9px',
+                                borderRadius: '12px',
+                                background: 'rgba(245, 158, 11, 0.15)',
+                                color: '#fbbf24',
+                                fontWeight: 800,
+                                border: '1px solid rgba(245, 158, 11, 0.35)',
+                              }}
+                            >
+                              <Star size={13} fill="#fbbf24" />
+                              <span>{Number(u.star || 0).toFixed(Number(starConfig?.decimal_precision ?? 1))}</span>
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* SYSTEM-WIDE WALLET RESET CONFIRMATION MODAL */}
+      {resetModal.isOpen && (
+        <div
+          className="modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !resetModal.loading) {
+              setResetModal((prev) => ({ ...prev, isOpen: false }));
+            }
+          }}
+        >
+          <div className="modal-box" style={{ maxWidth: '480px', border: '1px solid rgba(239, 68, 68, 0.45)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '0.75rem' }}>
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <AlertTriangle size={22} color="#ef4444" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                  {resetModal.title}
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 600 }}>
+                  High Impact System Action
+                </span>
+              </div>
+            </div>
+
+            <div
+              style={{
+                borderRadius: '8px',
+                padding: '0.85rem 1rem',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                fontSize: '0.82rem',
+                color: 'var(--text-main)',
+                lineHeight: 1.5,
+                marginBottom: '1.25rem',
+              }}
+            >
+              {resetModal.description}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.25rem' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '0.85rem',
+                  color: 'var(--text-main)',
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={resetModal.includeAdmins}
+                  onChange={(e) => setResetModal((prev) => ({ ...prev, includeAdmins: e.target.checked }))}
+                />
+                <span>Also reset balances for Admin accounts (default: excluded)</span>
+              </label>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                  Admin Action Security Password <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="password"
+                  className="input-field"
+                  placeholder="Enter action password (default: admin123)"
+                  value={resetModal.actionPassword}
+                  onChange={(e) => setResetModal((prev) => ({ ...prev, actionPassword: e.target.value }))}
+                  autoFocus
+                />
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px', display: 'block' }}>
+                  Configured under System Security settings (default: <code>admin123</code>).
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={resetModal.loading}
+                onClick={() => setResetModal((prev) => ({ ...prev, isOpen: false }))}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={resetModal.loading || !resetModal.actionPassword}
+                onClick={handleExecuteReset}
+                style={{
+                  background: '#ef4444',
+                  borderColor: '#dc2626',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {resetModal.loading ? <RefreshCw size={15} className="spin" /> : <Trash2 size={15} />}
+                <span>{resetModal.loading ? 'Resetting...' : 'Confirm & Execute'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CLEAR ALL USERS & SYSTEM RESET CONFIRMATION MODAL */}
+      {showClearConfirmModal && (
+        <div
+          className="modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !clearingAllUsers) {
+              setShowClearConfirmModal(false);
+            }
+          }}
+        >
+          <div className="modal-box" style={{ maxWidth: '480px', border: '1px solid rgba(239, 68, 68, 0.45)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '0.75rem' }}>
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444',
+                }}
+              >
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                  Final Confirmation: Purge All Users?
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 600 }}>
+                  This operation cannot be undone
+                </span>
+              </div>
+            </div>
+
+            <div
+              style={{
+                borderRadius: '8px',
+                padding: '0.85rem 1rem',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                fontSize: '0.82rem',
+                color: 'var(--text-main)',
+                lineHeight: 1.5,
+                marginBottom: '1.25rem',
+              }}
+            >
+              Are you sure you want to permanently delete all non-admin users across the entire system?
+              <ul style={{ margin: '8px 0 0 18px', padding: 0 }}>
+                <li>All user wallets, diamonds, levels, gifts, streams, and chats will be wiped.</li>
+                <li>Reserved accounts pool will be preserved and reset to available.</li>
+                <li>Registration will restart immediately from <strong>ID #{clearRestartId || '2'}</strong>.</li>
+                <li><strong style={{ color: '#10b981' }}>Super Admin (ID #1) is 100% safe.</strong></li>
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={clearingAllUsers}
+                onClick={() => setShowClearConfirmModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={clearingAllUsers}
+                onClick={handleClearAllUsersSubmit}
+                style={{
+                  background: '#ef4444',
+                  borderColor: '#dc2626',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {clearingAllUsers ? <RefreshCw size={15} className="spin" /> : <Trash2 size={15} />}
+                <span>{clearingAllUsers ? 'Purging System...' : 'Yes, Permanently Purge'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
