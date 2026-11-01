@@ -1017,14 +1017,15 @@ export async function initializeDatabase() {
       console.log('[DB Init] Fresh deployment detected: Seeding Super Admin only (Zero dummy users/data)...');
       const adminPassHash = await bcrypt.hash('admin123', 10);
 
-      // Super Admin user ONLY
+      // Super Admin users (HD Live & Legacy aliases)
       await connection.query(`
         INSERT INTO users (email, password_hash, full_name, avatar_url, bio, role, coins, diamonds, level)
         VALUES 
-        ('admin@hdlive.com', ?, 'System Admin', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', 'Super Administrator of HD Live', 'superadmin', 0, 0, 99);
-      `, [adminPassHash]);
+        ('admin@hdlive.com', ?, 'System Admin', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', 'Super Administrator of HD Live', 'superadmin', 0, 0, 99),
+        ('admin@umi.live', ?, 'System Admin', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', 'Super Administrator of HD Live', 'superadmin', 0, 0, 99);
+      `, [adminPassHash, adminPassHash]);
 
-      console.log('✅ [DB Init] Super Admin seeded (admin@hdlive.com). No fake users or dummy records created.');
+      console.log('✅ [DB Init] Super Admin seeded (admin@hdlive.com & admin@umi.live). No fake users or dummy records created.');
     }
 
     // Seed Essential System Settings (Default Configuration)
