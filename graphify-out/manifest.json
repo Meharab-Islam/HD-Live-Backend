@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "backend/src/db/init.js": {
-    "mtime": 1793523572.3357453,
-    "seen": 1793524131.15035,
-    "ast_hash": "ee8a8dc79b5ba8070b594571ce854a11",
+    "mtime": 1793525546.1070254,
+    "seen": 1793525583.564418,
+    "ast_hash": "1b084d89dc4e49a25bfeda5248d3daf0",
     "semantic_hash": ""
   },
   "backend/src/middlewares/authMiddleware.js": {
@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793524105.5108027,
-    "seen": 1793524131.1526499,
-    "ast_hash": "9dffb30f43066c32dcf7f9a429ae283b",
+    "mtime": 1793524904.7693303,
+    "seen": 1793525193.173399,
+    "ast_hash": "c8ec68c57c64b529348a6ff3fac98148",
     "semantic_hash": ""
   },
   "admin-panel/README.md": {
@@ -449,18 +449,6 @@
     "ast_hash": "c1609cfd7f6f1ddc4d3c3b19d37f1114",
     "semantic_hash": ""
   },
-  "backend/uploads/general/test_thumb_1791720811264-553115033.png": {
-    "mtime": 1791720811.2668304,
-    "seen": 1791720892.09995,
-    "ast_hash": "34a97bfd7fe96c248f2482e8251fff69",
-    "semantic_hash": ""
-  },
-  "backend/uploads/thumbnails/test_thumb_1791720885105-621496700.png": {
-    "mtime": 1791720885.1073575,
-    "seen": 1793523131.1923058,
-    "ast_hash": "34a97bfd7fe96c248f2482e8251fff69",
-    "semantic_hash": ""
-  },
   "admin-panel/src/api/bannerApi.js": {
     "mtime": 1791734026.0506337,
     "seen": 1793523131.1743171,
@@ -609,24 +597,6 @@
     "mtime": 1792931781.3476033,
     "seen": 1793523131.176737,
     "ast_hash": "a0665a752702467489a9986b9e2e4ff2",
-    "semantic_hash": ""
-  },
-  "backend/uploads/avatars/new_avatar_1791734444663-408572184.jpg": {
-    "mtime": 1791734444.6654432,
-    "seen": 1791734688.128593,
-    "ast_hash": "6d45daa48641a1f2b67bfbd4ef4693fc",
-    "semantic_hash": ""
-  },
-  "backend/uploads/avatars/profile_pic_1791734439900-763113407.jpg": {
-    "mtime": 1791734439.90239,
-    "seen": 1791734688.128594,
-    "ast_hash": "144410c9f38abe1b6ca8a77c0dc3e9e8",
-    "semantic_hash": ""
-  },
-  "backend/uploads/avatars/test_avatar_1791734431540-283151703.png": {
-    "mtime": 1791734431.5458174,
-    "seen": 1793523131.191812,
-    "ast_hash": "6d9c982255f70e70b24d9eb960117970",
     "semantic_hash": ""
   },
   "backend/src/controllers/mobile/configController.js": {
@@ -833,24 +803,6 @@
     "ast_hash": "0f2b2eab18419b6d790a631de17e7321",
     "semantic_hash": ""
   },
-  "backend/uploads/posts/camera_snap_device_1791792769771-408186313.jpg": {
-    "mtime": 1791792769.7731192,
-    "seen": 1791792784.6864278,
-    "ast_hash": "b977667175c64a32b4a25ead7313282e",
-    "semantic_hash": ""
-  },
-  "backend/uploads/posts/device_clip_sample_1791792769759-791497348.mp4": {
-    "mtime": 1791792769.7618055,
-    "seen": 1791792784.6864471,
-    "ast_hash": "c909c3877a8c85c2723825d944beca7a",
-    "semantic_hash": ""
-  },
-  "backend/uploads/posts/voice_recording_device_1791792769760-352499473.mp3": {
-    "mtime": 1791792769.7618163,
-    "seen": 1791792784.686448,
-    "ast_hash": "659e15796a8944ef560f004d23cdaa63",
-    "semantic_hash": ""
-  },
   "backend/src/controllers/mobile/chatController.js": {
     "mtime": 1792743734.1303315,
     "seen": 1792745343.470901,
@@ -861,66 +813,6 @@
     "mtime": 1792294389.3184173,
     "seen": 1792294565.3525262,
     "ast_hash": "acb286e78fcbfbcc19548c96a43831be",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/stage_photo_1791793140645-54729314.jpg": {
-    "mtime": 1791793140.6474435,
-    "seen": 1791793254.837374,
-    "ast_hash": "06afecf3f6f7bb3e2a9018a2b131abb8",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/stage_photo_1791793225087-321209055.jpg": {
-    "mtime": 1791793225.0894878,
-    "seen": 1793523131.192097,
-    "ast_hash": "06afecf3f6f7bb3e2a9018a2b131abb8",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/stage_photo_1791793243215-757027989.jpg": {
-    "mtime": 1791793243.216696,
-    "seen": 1791793254.837375,
-    "ast_hash": "06afecf3f6f7bb3e2a9018a2b131abb8",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/concert_mobile_clip_1791793140644-222529717.mp4": {
-    "mtime": 1791793140.647431,
-    "seen": 1791793254.83743,
-    "ast_hash": "17b0bf335034c54f98d1a441b2c34a7e",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/concert_mobile_clip_1791793225086-192573063.mp4": {
-    "mtime": 1791793225.0894756,
-    "seen": 1791793254.837431,
-    "ast_hash": "17b0bf335034c54f98d1a441b2c34a7e",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/concert_mobile_clip_1791793243215-594741819.mp4": {
-    "mtime": 1791793243.2165918,
-    "seen": 1793523131.192548,
-    "ast_hash": "17b0bf335034c54f98d1a441b2c34a7e",
-    "semantic_hash": ""
-  },
-  "backend/uploads/gifts/fire_dragon_anim_1791794086443-492844523.gif": {
-    "mtime": 1791794086.444805,
-    "seen": 1791794110.8818939,
-    "ast_hash": "76c2738a59ceedbcab73c997156e28f9",
-    "semantic_hash": ""
-  },
-  "backend/uploads/gifts/sports_car_thumb_1791794056867-245337673.png": {
-    "mtime": 1791794056.8696525,
-    "seen": 1791794110.8818948,
-    "ast_hash": "bd9f246bb87ad5c4872be029877c1db8",
-    "semantic_hash": ""
-  },
-  "backend/uploads/gifts/sports_car_thumb_1791794086432-13704975.png": {
-    "mtime": 1791794086.4340138,
-    "seen": 1791794110.881896,
-    "ast_hash": "bd9f246bb87ad5c4872be029877c1db8",
-    "semantic_hash": ""
-  },
-  "backend/uploads/gifts/dragon_roar_1791794086446-125382975.mp3": {
-    "mtime": 1791794086.4476252,
-    "seen": 1793523131.192548,
-    "ast_hash": "b254f09c5cac99fa8960e80292e12acf",
     "semantic_hash": ""
   },
   "scratch/test_device_and_google_auth.mjs": {
@@ -995,18 +887,6 @@
     "ast_hash": "da9be1dda2ff113df81e2ef13b55f81b",
     "semantic_hash": ""
   },
-  "backend/uploads/avatars/75914_1791961487793-196760123.jpg": {
-    "mtime": 1791961487.8226998,
-    "seen": 1793523131.191772,
-    "ast_hash": "13b0b787cc127f2abbe9b25182f4f8c1",
-    "semantic_hash": ""
-  },
-  "backend/uploads/posts/75917_1791961470027-675448916.jpg": {
-    "mtime": 1791961470.132493,
-    "seen": 1793523131.192262,
-    "ast_hash": "6ae4c1e2e958998ba3a97767d366ee6d",
-    "semantic_hash": ""
-  },
   "scratch/test_live_type.mjs": {
     "mtime": 1791972319.5196238,
     "seen": 1791972390.902297,
@@ -1055,12 +935,6 @@
     "ast_hash": "7e601bbe55497e4d5ce32656dddfa78c",
     "semantic_hash": ""
   },
-  "backend/uploads/packages/Kawaii_Weekly_Sign-In_Princess_Frame_1792037801034-450048310.png": {
-    "mtime": 1792037801.052119,
-    "seen": 1792037913.755687,
-    "ast_hash": "8fe50fe09822873029399991bb030b15",
-    "semantic_hash": ""
-  },
   "admin-panel/src/pages/RealtimeChatTester.jsx": {
     "mtime": 1792048904.5348885,
     "seen": 1792048915.838815,
@@ -1103,124 +977,10 @@
     "ast_hash": "c89eeddd466e7884a78d5a24f699e86a",
     "semantic_hash": ""
   },
-  "backend/uploads/avatars/1000005422_1792088020906-978084453.jpg": {
-    "mtime": 1792088020.9877708,
-    "seen": 1792088881.480669,
-    "ast_hash": "b64be8accbb41ef71d8bc74690d197a9",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/76282_1792090882584-192929639.jpg": {
-    "mtime": 1792090882.6402216,
-    "seen": 1792091040.962571,
-    "ast_hash": "6466f6dbff5cb5a6c3ed182ecd9826af",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/76284_1792090882577-830762607.jpg": {
-    "mtime": 1792090882.5847056,
-    "seen": 1793523131.192019,
-    "ast_hash": "b0a2f760459ba880afeed29f6ec6b648",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/76291_1792090882530-719840381.jpg": {
-    "mtime": 1792090882.5769193,
-    "seen": 1792091040.962573,
-    "ast_hash": "10c28f438a167388390f66c6bd71a5fa",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/76271_1792091078771-657358160.jpg": {
-    "mtime": 1792091078.783583,
-    "seen": 1792091369.901139,
-    "ast_hash": "4b9c4666361a58ec21aa0ea9566af424",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/76282_1792091078718-328614978.jpg": {
-    "mtime": 1792091078.7710292,
-    "seen": 1792091369.9011588,
-    "ast_hash": "6466f6dbff5cb5a6c3ed182ecd9826af",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/76284_1792091078701-843406572.jpg": {
-    "mtime": 1792091078.7179565,
-    "seen": 1792091369.9011781,
-    "ast_hash": "b0a2f760459ba880afeed29f6ec6b648",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/76291_1792091078674-967818453.jpg": {
-    "mtime": 1792091078.7014055,
-    "seen": 1792091369.901197,
-    "ast_hash": "10c28f438a167388390f66c6bd71a5fa",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/76053_1792091248193-109137211.mp4": {
-    "mtime": 1792091248.5458496,
-    "seen": 1792091369.901409,
-    "ast_hash": "cfed3c838bae98bb07be3d7da5f94914",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/76053_1792091248546-931021447.mp4": {
-    "mtime": 1792091248.874291,
-    "seen": 1793523131.192508,
-    "ast_hash": "cfed3c838bae98bb07be3d7da5f94914",
-    "semantic_hash": ""
-  },
   "backend/src/config/firebase.js": {
     "mtime": 1792830738.936563,
     "seen": 1792830767.9659798,
     "ast_hash": "09424a62964b071629cb9f2c1a50685e",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/1000005420_1792123219502-534245377.jpg": {
-    "mtime": 1792123219.6388142,
-    "seen": 1792126352.638668,
-    "ast_hash": "678da5291257c3114d115b2db35cadf6",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/1000005420_1792123238479-641765403.jpg": {
-    "mtime": 1792123238.5905073,
-    "seen": 1793523131.191838,
-    "ast_hash": "678da5291257c3114d115b2db35cadf6",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/1000005422_1792123219639-821891403.jpg": {
-    "mtime": 1792123219.7878976,
-    "seen": 1792126352.638669,
-    "ast_hash": "b64be8accbb41ef71d8bc74690d197a9",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/1000005422_1792123238590-185968715.jpg": {
-    "mtime": 1792123238.7096157,
-    "seen": 1792126352.63867,
-    "ast_hash": "b64be8accbb41ef71d8bc74690d197a9",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/1000005424_1792123219341-915849095.jpg": {
-    "mtime": 1792123219.5020907,
-    "seen": 1792126352.63867,
-    "ast_hash": "0ffd76598ec1b6a2fa0271ad5d54a697",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/1000005424_1792123238344-993164556.jpg": {
-    "mtime": 1792123238.479168,
-    "seen": 1792126352.6386712,
-    "ast_hash": "0ffd76598ec1b6a2fa0271ad5d54a697",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/1000005425_1792123219035-303287485.jpg": {
-    "mtime": 1792123219.3414528,
-    "seen": 1792126352.6386712,
-    "ast_hash": "23b4f24727bd468cd44a99b3a68f76b8",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/1000005425_1792123238225-928997990.jpg": {
-    "mtime": 1792123238.34244,
-    "seen": 1793523131.191935,
-    "ast_hash": "23b4f24727bd468cd44a99b3a68f76b8",
-    "semantic_hash": ""
-  },
-  "backend/uploads/chat/1000005443_1792123238180-818241414.webp": {
-    "mtime": 1792123238.2251656,
-    "seen": 1792126352.6386719,
-    "ast_hash": "783578290a7aee63e73e487989474b46",
     "semantic_hash": ""
   },
   "backend/src/routes/mobile/notificationRoutes.js": {
@@ -1241,18 +1001,6 @@
     "ast_hash": "3cd018d797c2de75781f94891884fafb",
     "semantic_hash": ""
   },
-  "backend/uploads/avatars/1000004636_1792154484736-906701033.jpg": {
-    "mtime": 1792154484.860522,
-    "seen": 1793523131.191749,
-    "ast_hash": "c4298e99da1e4732e8a0821e2caaafa2",
-    "semantic_hash": ""
-  },
-  "backend/uploads/rooms/scaled_76364_1792254986483-672642564.jpg": {
-    "mtime": 1792254986.511836,
-    "seen": 1793523131.1923048,
-    "ast_hash": "cd8a02a05232d218d43c430e0780fcc7",
-    "semantic_hash": ""
-  },
   "admin-panel/src/api/reportApi.js": {
     "mtime": 1792261184.32274,
     "seen": 1792262188.3421671,
@@ -1263,24 +1011,6 @@
     "mtime": 1792293654.3548453,
     "seen": 1792293669.397651,
     "ast_hash": "b865d7087e816c3acacd8c7c5e2cbddb",
-    "semantic_hash": ""
-  },
-  "backend/uploads/rooms/scaled_6495_1792394680103-883819944.jpg": {
-    "mtime": 1792394680.1289387,
-    "seen": 1792396339.870767,
-    "ast_hash": "eb6bcadd20d7bdb1c154ecb79859f9b2",
-    "semantic_hash": ""
-  },
-  "backend/uploads/gifts/Kawaii_Weekly_Sign-In_Princess_Frame_1792465393740-89535995.png": {
-    "mtime": 1792465393.746195,
-    "seen": 1792479129.453917,
-    "ast_hash": "8fe50fe09822873029399991bb030b15",
-    "semantic_hash": ""
-  },
-  "backend/uploads/rooms/scaled_1000006260_1792480154735-454877288.jpg": {
-    "mtime": 1792480154.7864606,
-    "seen": 1793523131.192283,
-    "ast_hash": "dd14690b5905a821f20cb5d27cc902e6",
     "semantic_hash": ""
   },
   "admin-panel/src/context/EconomyContext.jsx": {
@@ -6357,12 +6087,6 @@
     "mtime": 1793178688.6077316,
     "seen": 1793179366.683378,
     "ast_hash": "f9590c85dc6e4a862e42731895c65a01",
-    "semantic_hash": ""
-  },
-  "backend/uploads/gifts/global_gift_banner_bg.png": {
-    "mtime": 1793338774.6369562,
-    "seen": 1793339262.595742,
-    "ast_hash": "77df66f4368f6df8ceb8989541bec84b",
     "semantic_hash": ""
   },
   "admin-panel/src/api/reservedAccountsApi.js": {

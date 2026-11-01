@@ -72,9 +72,9 @@
     "semantic_hash": ""
   },
   "admin-panel/src/pages/Settings.jsx": {
-    "mtime": 1793419442.2941966,
-    "seen": 1793419495.40884,
-    "ast_hash": "bbdd942d792c7239476108b129c6c6cc",
+    "mtime": 1793523734.7587633,
+    "seen": 1793524131.1494982,
+    "ast_hash": "9443925673829077e84d9f28336f503b",
     "semantic_hash": ""
   },
   "admin-panel/src/pages/Users.jsx": {
@@ -96,27 +96,27 @@
     "semantic_hash": ""
   },
   "backend/package.json": {
-    "mtime": 1793095128.702029,
-    "seen": 1793095420.728286,
-    "ast_hash": "d65665690722c60fa2dbf6c7e373b3a9",
+    "mtime": 1793523485.043722,
+    "seen": 1793524131.149657,
+    "ast_hash": "a33b04ea7c0f23b32ad5956fc296603b",
     "semantic_hash": ""
   },
   "backend/src/config/db.js": {
-    "mtime": 1792739429.664909,
-    "seen": 1793523131.175571,
-    "ast_hash": "12bde7e8971b474133bfe5c2cb626b26",
+    "mtime": 1793523531.8792315,
+    "seen": 1793524131.1496582,
+    "ast_hash": "c171a41fc8c733e3127f448bb777850e",
     "semantic_hash": ""
   },
   "backend/src/config/jwt.js": {
-    "mtime": 1791731045.0160425,
-    "seen": 1791731314.641352,
-    "ast_hash": "2bad7d2cb71b8f55892f6502564de24c",
+    "mtime": 1793524001.8166604,
+    "seen": 1793524131.1496801,
+    "ast_hash": "59f30edb6a095c3d3751794e226bd5be",
     "semantic_hash": ""
   },
   "backend/src/controllers/adminController.js": {
-    "mtime": 1793420651.4693265,
-    "seen": 1793523131.175657,
-    "ast_hash": "abc6042722056fabbf1c5d0ad779e55a",
+    "mtime": 1793523753.9414213,
+    "seen": 1793524131.1497211,
+    "ast_hash": "3682fa91dc13318ff8477f0bc353b50b",
     "semantic_hash": ""
   },
   "backend/src/controllers/authController.js": {
@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "backend/src/db/init.js": {
-    "mtime": 1793420535.2032251,
-    "seen": 1793523131.176199,
-    "ast_hash": "a7cacfa392d16902f5fba5dd07aaa7cb",
+    "mtime": 1793523572.3357453,
+    "seen": 1793524131.15035,
+    "ast_hash": "ee8a8dc79b5ba8070b594571ce854a11",
     "semantic_hash": ""
   },
   "backend/src/middlewares/authMiddleware.js": {
@@ -186,9 +186,9 @@
     "semantic_hash": ""
   },
   "backend/src/server.js": {
-    "mtime": 1793374827.2162132,
-    "seen": 1793374859.810389,
-    "ast_hash": "961bb82c9a128bd9a31db742498ac71c",
+    "mtime": 1793523528.3340783,
+    "seen": 1793524131.151066,
+    "ast_hash": "aa2e64c6827ae72e05996b643291cdcc",
     "semantic_hash": ""
   },
   "backend/src/sockets/liveSocket.js": {
@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1791288833.0961814,
-    "seen": 1791289541.2822988,
-    "ast_hash": "5d72870a3a356bfdf1504d8f072d6b6d",
+    "mtime": 1793524105.5108027,
+    "seen": 1793524131.1526499,
+    "ast_hash": "9dffb30f43066c32dcf7f9a429ae283b",
     "semantic_hash": ""
   },
   "admin-panel/README.md": {
@@ -216,15 +216,15 @@
     "semantic_hash": ""
   },
   "admin-panel/index.html": {
-    "mtime": 1791264457.2895496,
-    "seen": 1791266624.530381,
-    "ast_hash": "8da08627a28b58020863747941330389",
+    "mtime": 1793523493.2505846,
+    "seen": 1793524131.1526668,
+    "ast_hash": "f11aca9fda93cc020f37be0c53c69960",
     "semantic_hash": ""
   },
   "docker-compose.yml": {
-    "mtime": 1793092844.2461624,
-    "seen": 1793092878.862627,
-    "ast_hash": "81823f9babe4790fa4af83c8c46f637b",
+    "mtime": 1793524041.8675938,
+    "seen": 1793524131.152668,
+    "ast_hash": "a2bc1fde8b8916533f9bcdb26feeab74",
     "semantic_hash": ""
   },
   "admin-panel/public/favicon.svg": {
@@ -498,9 +498,9 @@
     "semantic_hash": ""
   },
   "backend/src/config/redis.js": {
-    "mtime": 1793254324.302034,
-    "seen": 1793254600.701378,
-    "ast_hash": "21fa6e72236451052473fc678dd9a068",
+    "mtime": 1793523534.9626832,
+    "seen": 1793524131.1497002,
+    "ast_hash": "5be6f64a829b84eac806e23672218a9e",
     "semantic_hash": ""
   },
   ".agents/rules/redis-caching-policy.md": {
@@ -528,9 +528,9 @@
     "semantic_hash": ""
   },
   "admin-panel/src/api/apiSpec.js": {
-    "mtime": 1793515158.960689,
-    "seen": 1793516081.4217842,
-    "ast_hash": "d5554dae577477fa88d5f8234c15615c",
+    "mtime": 1793523932.5618618,
+    "seen": 1793524131.148159,
+    "ast_hash": "1f9536aa0e910c17deacbaf825616895",
     "semantic_hash": ""
   },
   "admin-panel/src/pages/ApiDocs.jsx": {
@@ -540,15 +540,15 @@
     "semantic_hash": ""
   },
   "backend/src/routes/docsRoutes.js": {
-    "mtime": 1793368795.1256506,
-    "seen": 1793368824.181228,
-    "ast_hash": "a9dd72505540f485e26b9c9257227a3f",
+    "mtime": 1793523945.3242583,
+    "seen": 1793524131.1504488,
+    "ast_hash": "874bc5b0583d3739ba68bc11b686d7c0",
     "semantic_hash": ""
   },
   "backend/src/controllers/mobile/authController.js": {
-    "mtime": 1793359028.7043293,
-    "seen": 1793523131.1757598,
-    "ast_hash": "01c4f02dfd1ab2c4f26c192e82c646e0",
+    "mtime": 1793523828.151818,
+    "seen": 1793524131.149843,
+    "ast_hash": "c6d0eab129af29f3747ead84c7a04885",
     "semantic_hash": ""
   },
   "backend/src/controllers/mobile/giftController.js": {
@@ -630,9 +630,9 @@
     "semantic_hash": ""
   },
   "backend/src/controllers/mobile/configController.js": {
-    "mtime": 1793034961.6813455,
-    "seen": 1793035184.102426,
-    "ast_hash": "90e6c75492189c85854dbd599102ec93",
+    "mtime": 1793523819.645573,
+    "seen": 1793524131.149909,
+    "ast_hash": "5bf77fc6311b47676f613c3e1b2ac39d",
     "semantic_hash": ""
   },
   "backend/src/routes/mobile/configRoutes.js": {
@@ -966,9 +966,9 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1793078809.133622,
-    "seen": 1793078882.798562,
-    "ast_hash": "0f81b0919fde1b901448f2b5e8cc2445",
+    "mtime": 1793523480.6907773,
+    "seen": 1793524131.1513128,
+    "ast_hash": "2824da41de182a7ed0717c66df615525",
     "semantic_hash": ""
   },
   "backend/src/controllers/mobile/bannerController.js": {
@@ -1038,9 +1038,9 @@
     "semantic_hash": ""
   },
   "admin-panel/src/components/SocketDocsView.jsx": {
-    "mtime": 1792140798.1559424,
-    "seen": 1792140832.1629472,
-    "ast_hash": "136c4a5b0c545a0b35e4bb2f592be906",
+    "mtime": 1793523888.1972668,
+    "seen": 1793524131.148879,
+    "ast_hash": "3e11d39eb586cbd164cef01162f55e61",
     "semantic_hash": ""
   },
   "scratch/test_socket_realtime_emission.mjs": {
@@ -1224,21 +1224,21 @@
     "semantic_hash": ""
   },
   "backend/src/routes/mobile/notificationRoutes.js": {
-    "mtime": 1792928818.643787,
-    "seen": 1792929389.134528,
-    "ast_hash": "eb21f8959b58c9376c1c2f5718f43c1e",
+    "mtime": 1793523839.0212395,
+    "seen": 1793524131.150829,
+    "ast_hash": "922715116821b71deb19eb1b53f681bc",
     "semantic_hash": ""
   },
   "deploy.sh": {
-    "mtime": 1793079526.4530578,
-    "seen": 1793079557.853058,
-    "ast_hash": "5c235ff97444b2213b1c6a12e5e9461b",
+    "mtime": 1793523902.323475,
+    "seen": 1793524131.151296,
+    "ast_hash": "2a345f6943959a0314332779cdf5617b",
     "semantic_hash": ""
   },
   "DEPLOYMENT_GUIDE.md": {
-    "mtime": 1792154128.8215263,
-    "seen": 1792154136.258568,
-    "ast_hash": "df2d8bbb33bd877f4bac3d5f7e764e5b",
+    "mtime": 1793523909.0583305,
+    "seen": 1793524131.151756,
+    "ast_hash": "3cd018d797c2de75781f94891884fafb",
     "semantic_hash": ""
   },
   "backend/uploads/avatars/1000004636_1792154484736-906701033.jpg": {
@@ -1410,9 +1410,9 @@
     "semantic_hash": ""
   },
   "admin-panel/src/context/BrandingContext.jsx": {
-    "mtime": 1792867196.158686,
-    "seen": 1792867213.459691,
-    "ast_hash": "c865350a5d8217111c4948a27e5050aa",
+    "mtime": 1793523505.620358,
+    "seen": 1793524131.148939,
+    "ast_hash": "e407bc4d1457e4f554a66d48c45159bd",
     "semantic_hash": ""
   },
   "backend/src/controllers/mobile/notificationController.js": {
@@ -1458,15 +1458,15 @@
     "semantic_hash": ""
   },
   "admin-panel/src/pages/LegalPolicies.jsx": {
-    "mtime": 1793039159.658776,
-    "seen": 1793523131.1752582,
-    "ast_hash": "34994608107fc46c393d680eda85b730",
+    "mtime": 1793523673.0755143,
+    "seen": 1793524131.149281,
+    "ast_hash": "83afd3a219503b20919a3139ff9236e0",
     "semantic_hash": ""
   },
   "backend/src/controllers/publicController.js": {
-    "mtime": 1793039551.6516752,
-    "seen": 1793039631.183485,
-    "ast_hash": "c3143fb6a41feb5681bb64bbad1542e0",
+    "mtime": 1793523797.7092857,
+    "seen": 1793524131.150291,
+    "ast_hash": "7b236163ea00007716db3182276b5e99",
     "semantic_hash": ""
   },
   "backend/src/routes/publicRoutes.js": {
@@ -1476,15 +1476,15 @@
     "semantic_hash": ""
   },
   "backend/public/index.html": {
-    "mtime": 1792955707.877633,
-    "seen": 1793523131.178369,
-    "ast_hash": "74e1c7f2987829ba871e4393863ceea8",
+    "mtime": 1793523628.2399805,
+    "seen": 1793524131.152668,
+    "ast_hash": "9db67a11232bee32b42d6c908156acff",
     "semantic_hash": ""
   },
   "admin-panel/src/pages/LandingPage.jsx": {
-    "mtime": 1793039609.49759,
-    "seen": 1793039631.182453,
-    "ast_hash": "ce38f2c77df8ac86986fc4a403ffadb9",
+    "mtime": 1793523651.2788692,
+    "seen": 1793524131.14928,
+    "ast_hash": "92173e1bf9d3a49080f6b88bd154f1f4",
     "semantic_hash": ""
   },
   "admin-panel/src/components/MarkdownRenderer.jsx": {
@@ -2310,9 +2310,9 @@
     "semantic_hash": ""
   },
   "Games/slote_mecine/backend/server.js": {
-    "mtime": 1793087865.1986167,
-    "seen": 1793089565.6332002,
-    "ast_hash": "fa6cde7c6bf9dbe717ed345947b1dfe3",
+    "mtime": 1793524074.9584255,
+    "seen": 1793524131.147211,
+    "ast_hash": "c13ac103d8cfaa7f2c5deed93d304232",
     "semantic_hash": ""
   },
   "Games/slote_mecine/frontend/package.json": {
@@ -2556,9 +2556,9 @@
     "semantic_hash": ""
   },
   "backend/src/sockets/gameSocket.js": {
-    "mtime": 1793077594.3673747,
-    "seen": 1793077825.3266969,
-    "ast_hash": "df2c7a4e30dcdbbd937f787607f3dcaf",
+    "mtime": 1793523811.030676,
+    "seen": 1793524131.151273,
+    "ast_hash": "afeeac7daaea987b62c1fb8136ea5478",
     "semantic_hash": ""
   },
   "Games/big_eater/docker-compose.yml": {
@@ -6228,9 +6228,9 @@
     "semantic_hash": ""
   },
   "Games/gameUserBridge.js": {
-    "mtime": 1793093019.9664829,
-    "seen": 1793093544.9889548,
-    "ast_hash": "a7471313fecab7d99792d4ba2f91de2c",
+    "mtime": 1793524067.8383164,
+    "seen": 1793524131.145041,
+    "ast_hash": "bd6dc8cfb128f44bd66108544306fcc8",
     "semantic_hash": ""
   },
   "Games/package.json": {
